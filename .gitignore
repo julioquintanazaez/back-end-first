@@ -1,1 +1,11 @@
+# Ignore log files
+*.log
+
+#Ignore CSV files 
 *.csv
+
+# Ignore the build directory
+__pycache__/
+node_modules/
+
+

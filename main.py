@@ -79,14 +79,6 @@ def get_db():
 		db.close()
 
 
-@app.get("/info")
-async def info():
-    return {
-        "app_name": APP_NAME,
-		"app_key": SECRET_KEY,
-		"app_algorithm": ALGORITHM,		 
-    }
-	
 #------CODE FOR THE JWT EXAMPLE----------
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
