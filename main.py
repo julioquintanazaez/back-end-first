@@ -41,14 +41,17 @@ oauth2_scheme = OAuth2PasswordBearer(
 app = FastAPI()
 
 #----SETUP MIDDLEWARES--------------------
-"""
+
+# Allow these origins to access the API
 origins = [
+	"http://localhost",
+	"https://localhost:3000",
+	"https://tools.slingacademy.com",
+	"https://www.slingacademy.com",
 	"http://localhost.tiangolo.com",
 	"https://localhost.tiangolo.com",
 	"https://app-project-jczo.onrender.com",
-	"http://app-project-jczo.onrender.com",
-	"http://localhost",
-	"https://localhost",
+	"http://app-project-jczo.onrender.com",	
 	"http://localhost:8080",
 	"https://localhost:8080",
 	"http://localhost:5000",
@@ -58,15 +61,19 @@ origins = [
 	"http://localhost:8000",
 	"https://localhost:8000",
 ]
-"""
-origins = ["*"]
+
+# Allow these methods to be used
+methods = ["GET", "POST", "PUT", "DELETE"]
+
+# Only these headers are allowed
+headers = ["Content-Type", "Authorization"]
 
 app.add_middleware(
 	CORSMiddleware,
 	allow_origins=origins,
 	allow_credentials=True,
-	allow_methods=["*"],
-	allow_headers=["*"],
+	allow_methods=methods,
+	allow_headers=headers,
 	expose_headers=["*"]
 )
 
