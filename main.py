@@ -41,6 +41,7 @@ oauth2_scheme = OAuth2PasswordBearer(
 app = FastAPI()
 
 #----SETUP MIDDLEWARES--------------------
+"""
 origins = [
 	"http://localhost.tiangolo.com",
 	"https://localhost.tiangolo.com",
@@ -57,6 +58,8 @@ origins = [
 	"http://localhost:8000",
 	"https://localhost:8000",
 ]
+"""
+origins = ["*"]
 
 app.add_middleware(
 	CORSMiddleware,
