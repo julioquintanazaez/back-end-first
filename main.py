@@ -44,6 +44,8 @@ app = FastAPI()
 origins = [
 	"http://localhost.tiangolo.com",
 	"https://localhost.tiangolo.com",
+	"https://app-project-jczo.onrender.com"
+	"http://app-project-jczo.onrender.com"
 	"http://localhost",
 	"https://localhost",
 	"http://localhost:8080",
@@ -172,7 +174,7 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
 			detail="Incorrect username or password",
 			headers={"WWW-Authenticate": "Bearer"},
 		)
-	access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+	access_token_expires = timedelta(minutes=int(ACCESS_TOKEN_EXPIRE_MINUTES))
 	print(form_data.scopes)
 	print(user.role)
 	access_token = create_access_token(
