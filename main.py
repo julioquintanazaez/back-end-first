@@ -44,8 +44,8 @@ app = FastAPI()
 origins = [
 	"http://localhost.tiangolo.com",
 	"https://localhost.tiangolo.com",
-	"https://app-project-jczo.onrender.com"
-	"http://app-project-jczo.onrender.com"
+	"https://app-project-jczo.onrender.com",
+	"http://app-project-jczo.onrender.com",
 	"http://localhost",
 	"https://localhost",
 	"http://localhost:8080",
