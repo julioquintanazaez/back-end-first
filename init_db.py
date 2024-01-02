@@ -20,14 +20,7 @@ def create_fake_data():
 	models.Equipment.metadata.create(bind=engine)	
 	models.Material.metadata.create(bind=engine)
 	models.Task.metadata.create(bind=engine)
-	models.Labor_Material.metadata.create(bind=engine)
-	models.Labor_Equipment.metadata.create(bind=engine)
-	models.Labor_Task.metadata.create(bind=engine)
 	
-	models.PL_Task.metadata.create(bind=engine)
-	models.PL_Material.metadata.create(bind=engine)
-	models.PL_Equipment.metadata.create(bind=engine)
-
 	db.create_all()
 	db.commit()
 	db.close()

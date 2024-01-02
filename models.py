@@ -5,54 +5,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from fastapi_utils.guid_type import GUID, GUID_DEFAULT_SQLITE
 
-from uuid import UUID, uuid4    
-
-
-actual_date = datetime.datetime.now()
-
-"""
-Main tables required for our bussiness model
-	Project:
-	Labor:
-	Task:
-	Equipment:
-	Material:	
-	Some category tables required for searching porpouses
-		Material_Category:
-		Labor_Category:
-	Association tables:
-		Labor_Task:
-		Labor_Equipment:
-		Labor_Material:
-"""
-
-class Project(Base):  #One-to-Many with Labor
-	__tablename__ = "project"
-	#Main data
-	id = Column(GUID, primary_key=True, default=GUID_DEFAULT_SQLITE)
-	name = Column(String(50), unique=True, nullable=False, index=True)
-	description = Column(String(100), nullable=True, default=None, index=True)
-	initial_date = Column(DateTime, nullable=False, server_default=func.now())
-	update_date = Column(DateTime, onupdate=func.now()) 
-	end_date = Column(DateTime)
-	manager = Column(String(50), nullable=False, index=True)
-	mail_manager = Column(String(50), nullable=True)
-	is_active = Column(Boolean, nullable=True, default=True)	
-	
-	l_material = relationship("Labor", secondary="pl_material", back_populates='p_material') #Reference field that points to Material table (in labors)
-	l_task = relationship("Labor", secondary="pl_task", back_populates='p_task') #Reference field that points to Material table (in labors)
-	l_equipments = relationship("Labor", secondary="pl_equipment", back_populates='p_equipment') #Reference field that points to Material table (in labors)
-	
-class Labor(Base): #Many-to-One with Project
-	__tablename__ = "labor"	
-	#Main data
-	id = Column(GUID, primary_key=True, default=GUID_DEFAULT_SQLITE)
-	type = Column(String(100), unique=True, nullable=False, index=True)		
-	
-	p_material = relationship("Project", secondary="pl_material", back_populates='l_material') #Reference field that points to Material table (in labors)
-	p_task = relationship("Project", secondary="pl_task", back_populates='l_task') #Reference field that points to Material table (in labors)
-	p_equipment = relationship("Project", secondary="pl_equipment", back_populates='l_equipments') #Reference field that points to Material table (in labors)
-	
+from uuid import UUID, uuid4  
 
 class User(Base):
 	__tablename__ = "user"
@@ -64,43 +17,79 @@ class User(Base):
 	disable = Column(Boolean, nullable=True, default=False)	
 	hashed_password = Column(String(100), nullable=True, default=True)	
 
+class Project(Base):  
+	__tablename__ = "project"
 	
-class PL_Material(Base):  #Associetion table between Labor-Material
-	__tablename__ = 'pl_material'
-	
-	#Main data
 	id = Column(GUID, primary_key=True, default=GUID_DEFAULT_SQLITE)
-	material = Column(String(100), nullable=True, default=None, index=True) 
-	type_material = Column(String(100), nullable=True, default=None, index=True) 
-	quantity = Column(Integer, nullable=True, default=1)
-	price = Column(Float, nullable=True, default=1.0) #es el mismo que el del material
-	amount = Column(Float, nullable=True, default=1.0)	
-	#Relation association Many-to-Many
-	labor_id = Column(GUID, ForeignKey('labor.id'), primary_key=True)   #ForeignKey that point to parent table
-	project_id = Column(GUID, ForeignKey('project.id'), primary_key=True)  #ForeignKey that point to parent table
+	project_name = Column(String(50), unique=True, nullable=False, index=True)
+	desc_proj = Column(String(100), nullable=True, default=None, index=True)
+	inidate_proj = Column(DateTime, nullable=True, server_default=func.now())
+	upddate_proj = Column(DateTime, onupdate=func.now()) 
+	enddate_proj = Column(DateTime)
+	manager = Column(String(50), nullable=False, index=True)
+	mail_manager = Column(String(50), nullable=True)
+	latitud = Column(Float, nullable=True, default=0.0) 	
+	longitud = Column(Float, nullable=True, default=0.0) 
+	is_active = Column(Boolean, nullable=True, default=True)
+	#Relations with its child "Labor"
+	labors = relationship("Labor", back_populates="project")
 	
-class PL_Task(Base):
-	__tablename__ = "pl_task"
+class Labor(Base): 
+	__tablename__ = "labor"	
+	
+	id = Column(GUID, primary_key=True, default=GUID_DEFAULT_SQLITE)
+	type = Column(String(100), nullable=False, index=True)
+	desc_labor = Column(String(100), nullable=True, default=None, index=True)
+	inidate_labor = Column(DateTime, nullable=True, server_default=func.now())
+	upddate_labor = Column(DateTime, onupdate=func.now()) 
+	enddate_labor = Column(DateTime)	
+	is_active = Column(Boolean, nullable=True, default=True)	
+	#Relation with its father "Project"
+	project_id = Column(GUID, ForeignKey("project.id"))
+	project = relationship("Project", back_populates="labors")
+	#Relations with its childs "Task, Equipment & Material"
+	tasks = relationship("Task", back_populates="labor_tasks")
+	equipments = relationship("Equipment", back_populates="labor_equipments")
+	materials = relationship("Material", back_populates="labor_materials")
+	
+class Task(Base):
+	__tablename__ = "task"
 
 	id = Column(GUID, primary_key=True, default=GUID_DEFAULT_SQLITE)
 	description = Column(String(100), nullable=True, default=None, index=True) 
 	mechanicals = Column(Integer, nullable=True, default=1)
 	hour = Column(Integer, nullable=True, default=1)
 	hour_men = Column(Integer, nullable=True, default=1)
-	price = Column(Float, nullable=True, default=1.0)
+	task_price = Column(Float, nullable=True, default=1.0)
+	inidate_task = Column(DateTime, nullable=False, server_default=func.now())
+	upddate_task = Column(DateTime, onupdate=func.now()) 
+	enddate_task = Column(DateTime)	
 	is_active = Column(Boolean, nullable=True, default=True)
-	#Relation association Many-to-Many
-	labor_id = Column(GUID, ForeignKey('labor.id'), primary_key=True)   #ForeignKey that point to parent table
-	project_id = Column(GUID, ForeignKey('project.id'), primary_key=True)  #ForeignKey that point to parent table
+	#Relation with its father "Labor"
+	labor_task_id = Column(GUID, ForeignKey("labor.id"))	
+	labor_tasks = relationship("Labor", back_populates="tasks")
 	
-class PL_Equipment(Base):
-	__tablename__ = "pl_equipment"
+class Equipment(Base):
+	__tablename__ = "equipment"
 
 	id = Column(GUID, primary_key=True, default=GUID_DEFAULT_SQLITE)
-	equipment = Column(String(100), nullable=True, default=None, index=True) 
-	quantity = Column(Integer, nullable=True, default=1)
-	unit_price = Column(Float, nullable=True, default=1.0)
-	amount = Column(Float, nullable=True, default=1.0)
-	#Relation association Many-to-Many
-	labor_id = Column(GUID, ForeignKey('labor.id'), primary_key=True)   #ForeignKey that point to parent table
-	project_id = Column(GUID, ForeignKey('project.id'), primary_key=True)  #ForeignKey that point to parent table
+	equipment_name = Column(String(100), nullable=True, default=None, index=True) 
+	equipment_quantity = Column(Integer, nullable=True, default=1)
+	equipment_unit_price = Column(Float, nullable=True, default=1.0)
+	equipment_amount = Column(Float, nullable=True, default=1.0)
+	#Relation with its father "Labor"
+	labor_equipment_id = Column(GUID, ForeignKey("labor.id"))	
+	labor_equipments = relationship("Labor", back_populates="equipments")
+
+class Material(Base):  
+	__tablename__ = 'material'
+	
+	id = Column(GUID, primary_key=True, default=GUID_DEFAULT_SQLITE)
+	material_name = Column(String(100), nullable=True, default=None, index=True) 
+	material_type = Column(String(100), nullable=True, default=None, index=True) 
+	material_quantity = Column(Integer, nullable=True, default=1)
+	material_price = Column(Float, nullable=True, default=1.0) #es el mismo que el del material
+	material_amount = Column(Float, nullable=True, default=1.0)	
+	#Relation with its father "Labor"
+	labor_material_id = Column(GUID, ForeignKey("labor.id"))	
+	labor_materials = relationship("Labor", back_populates="materials")

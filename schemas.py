@@ -1,6 +1,5 @@
 from typing import Union, Optional, List
 from datetime import date
-
 from pydantic import BaseModel, EmailStr 
 
 class UserUPD(BaseModel):	
@@ -45,12 +44,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
 	username: Union[str, None] = None
-	scopes: List[str] = []
-	
-	
+	scopes: List[str] = []	
+#-------------------------
+#-------PROJECT-------------
+#-------------------------
 class Project(BaseModel):
-	name : str
-	description : str 
+	project_name : str
+	desc_proj : str 
 	manager : str
 	mail_manager : EmailStr 
 	
@@ -61,13 +61,35 @@ class Project(BaseModel):
 		
 class ProjectInDB(Project):
 	id : str 
-	initial_date : date
-	update_date : date
-	end_date : date
-	is_active : bool 
+	inidate_proj : Union[date, None] = None
+	upddate_proj : Union[date, None] = None
+	enddate_proj : Union[date, None] = None
+	latitud : Union[float, None] = None
+	longitud : Union[float, None] = None
+	is_active : Union[bool, None] = None 
+#-------------------------
+#-------LABOR-------------
+#-------------------------	
+class LaborActive(BaseModel):
+	is_active: Union[bool, None] = None
+			
+	class Config:
+		orm_mode = True
+		allow_population_by_field_name = True
+		arbitrary_types_allowed = True	
+
+class LaborUPD(BaseModel):
+	desc_labor : str
+	
+	class Config:
+		orm_mode = True
+		allow_population_by_field_name = True
+		arbitrary_types_allowed = True
 		
 class Labor(BaseModel):
 	type : str	
+	desc_labor : str
+	project_id: str
 	
 	class Config:
 		orm_mode = True
@@ -76,36 +98,15 @@ class Labor(BaseModel):
 		
 class LaborInDB(Labor):
 	id: str		
+	inidate_labor : date
+	upddate_labor : date
+	enddate_labor : date
+	is_active : Union[bool, None] = None 
 
-#-----------------------------
-class PL_MaterialUPD(BaseModel):
-	quantity : int
-	price : float
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True
-		
-class PL_Material(BaseModel):
-	material: str
-	type_material: str
-	quantity : int
-	price : float	
-	labor_id : str 
-	project_id : str 
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-
-class PL_MaterialInDB(PL_Material):
-	id: str	
-	amount : float
-	
 #-------------------------
-class PL_TaskActive(BaseModel):
+#-------TASK-------------
+#-------------------------
+class TaskActive(BaseModel):
 	is_active: Union[bool, None] = None
 			
 	class Config:
@@ -113,189 +114,93 @@ class PL_TaskActive(BaseModel):
 		allow_population_by_field_name = True
 		arbitrary_types_allowed = True	
 	
-class PL_TaskUPD(BaseModel):
+class TaskUPD(BaseModel):
 	mechanicals : int
 	hour : int
-	price : float
+	task_price : float
 			
 	class Config:
 		orm_mode = True
 		allow_population_by_field_name = True
 		arbitrary_types_allowed = True	
 		
-class PL_Task(BaseModel):
+class Task(BaseModel):
 	description : str
 	mechanicals : int
 	hour : int
-	price : float
-	labor_id : str 
-	project_id : str 
+	task_price : float
+	labor_task_id : str 
 			
 	class Config:
 		orm_mode = True
 		allow_population_by_field_name = True
 		arbitrary_types_allowed = True		
 		
-class PL_TaskInDB(PL_Task):
+class TaskInDB(Task):
 	id: str
 	hour_men : int
+	inidate_task : date
+	upddate_task : date
+	enddate_task : date
 	is_active : Union[bool, None] = None	
 	
 #-------------------------
-
-class PL_EquipmentUPD(BaseModel):
-	quantity : int
-	unit_price : float
-	
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-		
-class PL_Equipment(BaseModel):
-	equipment: str
-	quantity : int
-	unit_price : float
-	labor_id : str 
-	project_id : str 
+#-------MATERIAL-------------
+#-------------------------
+class MaterialUPD(BaseModel):
+	material_quantity : int
+	material_price : float
 			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-		
-class PL_EquipmentInDB(PL_Equipment):
-	id: str
-	amount : float	
-	
-
-#----------------------------------	
-	
-	
-	
-class Category_Material(BaseModel):
-	id : str
-	
 	class Config:
 		orm_mode = True
 		allow_population_by_field_name = True
 		arbitrary_types_allowed = True
 		
 class Material(BaseModel):
-	name : str
-	price : float
-	category_id : str
-	
+	material_name: str
+	material_type: str
+	material_quantity : int
+	material_price : float	
+	labor_material_id : str 
+			
 	class Config:
 		orm_mode = True
 		allow_population_by_field_name = True
-		arbitrary_types_allowed = True
-		
-class MaterialInDB(Material):
-	id : str	
+		arbitrary_types_allowed = True	
 
-class Task(BaseModel):
-	name : str
+class MaterialInDB(Material):
+	id: str	
+	material_amount : float
+	
+#-------------------------
+#-------EQUIPMENT-------------
+#-------------------------
+
+class EquipmentUPD(BaseModel):
+	equipment_quantity : int
+	equipment_unit_price : float
 	
 	class Config:
 		orm_mode = True
 		allow_population_by_field_name = True
-		arbitrary_types_allowed = True
-		
-class TaskInDB(Task):
-	id : str
+		arbitrary_types_allowed = True	
 		
 class Equipment(BaseModel):
-	name : str
-	unit : str
-	unit_price : float
-	
+	equipment_name: str
+	equipment_quantity : int
+	equipment_unit_price : float
+	labor_equipment_id : str 
+			
 	class Config:
 		orm_mode = True
 		allow_population_by_field_name = True
-		arbitrary_types_allowed = True
+		arbitrary_types_allowed = True	
 		
 class EquipmentInDB(Equipment):
-	id : str
-
-class Labor_MaterialUPD(BaseModel):
-	quantity : int
-	material_price : float
-	price_plus : float
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True
-		
-class Labor_Material(BaseModel):
-	quantity : int
-	material_price : float
-	price_plus : float	
-	labor_id : str 
-	material_id : str 
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-
-class Labor_MaterialInDB(Labor_Material):
-	id: str	
-	amount : float
-
-class Labor_TaskUPD(BaseModel):
-	description : str
-	mechanicals : int
-	hour : int
-	price : float
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-		
-class Labor_Task(BaseModel):
-	description : str
-	mechanicals : int
-	hour : int
-	price : float
-	end_date : Union[date, None] = None
-	labor_id : str 
-	task_id : str 
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True		
-		
-class Labor_TaskInDB(Labor_Task):
 	id: str
-	hour_men : int
-	initial_date : Union[date, None] = None	
-	update_date : Union[date, None] = None	
-	is_active : Union[bool, None] = None
+	equipment_amount : float	
 	
-class Labor_EquipmentUPD(BaseModel):
-	quantity : int
+
+#----------------------------------	
 	
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-		
-class Labor_Equipment(BaseModel):
-	quantity : int
-	labor_id : str 
-	equipment_id : str 
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-		
-class Labor_EquipmentInDB(Labor_Equipment):
-	id: str
-	amount : float	
-	unit_price_lb : float
 	

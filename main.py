@@ -1,34 +1,30 @@
 from fastapi import Depends, FastAPI, HTTPException, status, Response, Security, Request
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm, SecurityScopes
 from functools import lru_cache
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.sql import func
-import models
-import schemas
-from database import SessionLocal, engine
+from sqlalchemy import desc, asc
 from uuid import uuid4
 from pathlib import Path
-import init_db
-
 from typing import Union
 from datetime import datetime, timedelta
-
 #---Imported for JWT example-----------
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm, SecurityScopes
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, ValidationError
 from typing_extensions import Annotated
-
-import config 
+import models
+import schemas
+from database import SessionLocal, engine
+import init_db
+import config
 
 #-------FAKE DB------------------------
 #User: julio:admin987*!!+  / sherlock: backer356 / marco:marco123
 #-------------------------------------
 models.Base.metadata.create_all(bind=engine)
-
-
 
 #Create resources for JWT flow
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -43,15 +39,16 @@ app = FastAPI()
 #----SETUP MIDDLEWARES--------------------
 
 # Allow these origins to access the API
-origins = [
-	"http://localhost",
-	"https://localhost:3000",
-	"https://tools.slingacademy.com",
-	"https://www.slingacademy.com",
-	"http://localhost.tiangolo.com",
-	"https://localhost.tiangolo.com",
+"""
+"https://tools.slingacademy.com",
+"https://www.slingacademy.com",
+"http://localhost.tiangolo.com",
+"https://localhost.tiangolo.com",	
+"""
+origins = [	
 	"https://app-project-jczo.onrender.com",
 	"http://app-project-jczo.onrender.com",	
+	"http://localhost",
 	"http://localhost:8080",
 	"https://localhost:8080",
 	"http://localhost:5000",
@@ -193,124 +190,17 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
 	)
 	return {"access_token": access_token, "token_type": "Bearer"}
 	
-#----This endpoint is to show how we can use the dependency injection for validated current user
-
 @app.get("/")
 def index():
 	return {"Application": "Hello from developers"}
-	
-@app.get("/dumb/")
-def dumb():
-	#init_db.create_fake_data()
-	return {"Conection": "Create Successfuly"}
-	
 	
 @app.get("/users/me/", response_model=schemas.User)
 async def read_users_me(current_user: Annotated[schemas.User, Security(get_current_active_user, scopes=["admin", "manager", "user"])]):
     return current_user
 	
-	
-#######################
-#Crud for PROJECTS here
-#######################
-
-@app.post("/create_project/", status_code=status.HTTP_201_CREATED)  #, response_model=schemas.Project
-def create_project(project: schemas.Project, db: Session = Depends(get_db)):	
-	try:
-		db_project = models.Project(
-			name=project.name, 
-			description=project.description,
-			initial_date=func.now(),
-			update_date = func.now(),
-			manager=project.manager,
-			mail_manager=project.mail_manager			
-		)
-		db.add(db_project)
-		db.commit()
-		db.refresh(db_project)	
-		return db_project
-	except SQLAlchemyError as e: 
-		raise HTTPException(status_code=500, detail="Unique integrity")
-
-#Modificar la respuesta para que sea el error correcto, buscar diferentes tipos de errores
-@app.get("/read_projects/", status_code=status.HTTP_201_CREATED)   #response_model=list[schemas.Item]
-def read_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
-	projects = db.query(models.Project).offset(skip).limit(limit).all()    
-	return projects
-	
-@app.put("/update_project/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def update_project(project_id: str, project: schemas.Project, db: Session = Depends(get_db)):
-	db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
-	if db_project is None:
-		raise HTTPException(status_code=404, detail="Project not found")
-	#Values to be modified here, and the stored data recived the new values
-	db_project.name = project.name
-	db_project.description = project.description
-	db_project.manager = project.manager
-	db_project.mail_manager = project.mail_manager
-	db_project.update_date = func.now()
-	db.commit()
-	db.refresh(db_project)	
-	return db_project
-
-@app.delete("/delete_project/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def delete_project(project_id: str, db: Session = Depends(get_db)):
-	db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
-	if db_project is None:
-		raise HTTPException(status_code=404, detail="Project not found")	
-	db.delete(db_project)	#delete the project from DB
-	db.commit()
-	return {"Deleted": "Delete Successfuly"}
-
-#####################
-#Crud for LABORS here
-#Many-to-Many remember
-#####################
-
-@app.post("/create_labor/", status_code=status.HTTP_201_CREATED)  #, response_model=schemas.Project
-def create_labor(labor: schemas.Labor, db: Session = Depends(get_db)):	
-	try:
-		db_labor = models.Labor(
-			type=labor.type,		
-			
-		)
-		db.add(db_labor) 
-		db.commit()
-		db.refresh(db_labor)	
-		return db_labor
-	except SQLAlchemyError as e: 
-		raise HTTPException(status_code=500, detail="Unique integrity")
-		
-@app.get("/read_labors/", status_code=status.HTTP_201_CREATED)  
-def read_labors(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-	db_labors = db.query(models.Labor).offset(skip).limit(limit).all()    
-	return db_labors
-
-	
-@app.put("/update_labor/{labor_id}", status_code=status.HTTP_201_CREATED) 
-def update_labor(labor_id: str, upd_labor: schemas.Labor, db: Session = Depends(get_db)):
-	db_labor = db.query(models.Labor).filter(models.Labor.id == labor_id).first()
-	if db_labor is None:
-		raise HTTPException(status_code=404, detail="Labor category not found")
-	db_labor.type=upd_labor.type
-	db.commit()
-	db.refresh(db_labor)	
-	return db_labor
-
-@app.delete("/delete_labor/{labor_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def delete_labor(labor_id: str, db: Session = Depends(get_db)):
-	db_labor = db.query(models.Labor).filter(models.Labor.id == labor_id).first()
-	if db_labor is None:
-		raise HTTPException(status_code=404, detail="Labor not found")	
-	db.delete(db_labor)	
-	db.commit()
-	return {"Deleted": "Delete Successfuly"}
-
-					
 #########################
 ###   USERS ADMIN  ######
 #########################
-
 @app.post("/create_user/", status_code=status.HTTP_201_CREATED)  
 def create_user(user: schemas.UserInDB, db: Session = Depends(get_db)):
 	if db.query(models.User).filter(models.User.username == user.username).first() :
@@ -386,416 +276,990 @@ def reset_password(username: str, password: schemas.UserPassword, db: Session = 
 	db.commit()
 	db.refresh(db_user)	
 	return {"Result": "Password Updated Successfuly"}
+		
+#######################
+#CRUD for PROJECTS here
+#######################
 
-#########################
-#PL MATERial
-##########################
+@app.post("/create_project/", status_code=status.HTTP_201_CREATED)  #, response_model=schemas.Project
+def create_project(project: schemas.Project, db: Session = Depends(get_db)):	
+	try:
+		db_project = db.query(models.Project).filter(models.Project.project_name == project.project_name).first()
+		if db_project is None:
+			db_project = models.Project(
+				project_name=project.project_name, 
+				desc_proj=project.desc_proj,			
+				manager=project.manager,
+				mail_manager=project.mail_manager,
+				inidate_proj=func.now(),
+				upddate_proj = func.now(),
+				latitud=0,
+				longitud=0,
+				is_active=True, 
+			)
+			db.add(db_project)
+			db.commit()
+			db.refresh(db_project)	
+			return db_project
+	except IntegrityError as e:
+		raise HTTPException(status_code=500, detail="Integrity error")
+	except SQLAlchemyError as e: 
+		raise HTTPException(status_code=405, detail="Unexpected error when creating project")
 
-@app.post("/create_pl_material/", status_code=status.HTTP_201_CREATED) 
-def create_pl_material(pl_material: schemas.PL_Material, db: Session = Depends(get_db)):	
-	db_labor = db.query(models.Labor).filter(models.Labor.id == pl_material.labor_id).first()	
-	db_project = db.query(models.Project).filter(models.Project.id == pl_material.project_id).first()	
-					  
-	db_pl_material = models.PL_Material(	
-		material=pl_material.material,  
-		quantity=pl_material.quantity,	
-		type_material=pl_material.type_material,
-		price=pl_material.price,
-		amount=(pl_material.quantity * pl_material.price),
-		#Relations
-		labor_id=db_labor.id,
-		project_id=db_project.id,	 
-	)
-	db.add(db_pl_material) 
+@app.get("/read_projects/", status_code=status.HTTP_201_CREATED)
+def read_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
+	projects = db.query(models.Project).offset(skip).limit(limit).all()    
+	return projects
+	
+@app.put("/update_project/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
+def update_project(project_id: str, project: schemas.Project, db: Session = Depends(get_db)):
+	db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+	if db_project is None:
+		raise HTTPException(status_code=404, detail="Project not found")
+	db_project.project_name = project.project_name
+	db_project.desc_proj = project.desc_proj
+	db_project.manager = project.manager
+	db_project.mail_manager = project.mail_manager
+	db_project.upddate_proj = func.now()
 	db.commit()
-	db.refresh(db_pl_material)
-	return query
+	db.refresh(db_project)	
+	return db_project
 
-@app.get("/read_pl_materials/", status_code=status.HTTP_201_CREATED)  
-def read_pl_materials(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
-	db_pl_laterials = db.query(models.PL_Material).offset(skip).limit(limit).all()    
-	return db_pl_laterials
-	
-@app.get("/read_pl_materials_query/", status_code=status.HTTP_201_CREATED)  
-def read_pl_materials_query(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
-	
-	query = db.query(models.PL_Material.quantity,
-					models.PL_Material.material,
-					models.PL_Material.price,
-					models.PL_Material.type_material,
-					models.PL_Material.amount,
-					models.PL_Material.id,
-					models.PL_Material.labor_id,
-					models.PL_Material.project_id,
-					models.Labor.type,
-					models.Project.name 
-					  ).join(models.Labor, models.Project					  
-					  ).filter(models.PL_Material.labor_id == models.Labor.id,
-							models.PL_Material.project_id == models.Project.id
-					  ).all()
-	
-	return query 
-	
-@app.get("/read_pl_material_by_project/{project_id}", status_code=status.HTTP_201_CREATED)  
-def read_pl_material_by_project(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-	
-	query = db.query(models.PL_Material.labor_id, models.Labor.type
-						).join(models.Labor, models.Labor.id == models.PL_Material.labor_id
-						).group_by(models.PL_Material.labor_id
-						).filter(models.PL_Material.project_id == project_id).all()
-					  
-	return query
-	
-@app.get("/read_pl_material_by_project_labor/{project_id, labor_id}", status_code=status.HTTP_201_CREATED)  
-def read_pl_material_by_project_labor(project_id: str, labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-	
-	query = db.query(models.PL_Material.quantity,
-					models.PL_Material.material,
-					models.PL_Material.price,
-					models.PL_Material.type_material,
-					models.PL_Material.amount,
-					models.PL_Material.id,
-					models.PL_Material.labor_id,
-					models.PL_Material.project_id,
-					models.Labor.type,
-					models.Project.name 
-						).join(models.Labor, models.Project
-						).filter(models.PL_Material.project_id == project_id, models.PL_Material.labor_id == labor_id 
-						).all()
-					  
-	return query
-	
-@app.put("/update_pl_material/{id}", status_code=status.HTTP_201_CREATED) 
-def update_pl_material(id: str, upd_labor_material: schemas.PL_MaterialUPD, db: Session = Depends(get_db)):
-	db_pl_material = db.query(models.PL_Material).filter(models.PL_Material.id == id).first()
-	if db_pl_material is None:
-		raise HTTPException(status_code=404, detail="PL_Material not found")
-	db_pl_material.quantity=upd_labor_material.quantity
-	db_pl_material.price=upd_labor_material.price
-	db_pl_material.amount=(upd_labor_material.quantity * upd_labor_material.price)
-	db.commit()
-	db.refresh(db_pl_material)	
-	return db_pl_material	
-
-@app.delete("/delete_pl_material/{id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def delete_pl_material(id: str, db: Session = Depends(get_db)):
-	db_pl_material = db.query(models.PL_Material).filter(models.PL_Material.id == id).first()
-	if db_pl_material is None:
-		raise HTTPException(status_code=404, detail="PL_Material not found")	
-	db.delete(db_pl_material)	
+@app.delete("/delete_project/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
+def delete_project(project_id: str, db: Session = Depends(get_db)):
+	db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+	if db_project is None:
+		raise HTTPException(status_code=404, detail="Project not found")	
+	db.delete(db_project)	
 	db.commit()
 	return {"Deleted": "Delete Successfuly"}
 
-#########################
-#PL EQUIPMENT 
-##############################
+#####################
+#CRUD for LABORS here
+#####################
 
-@app.post("/create_pl_equipment/", status_code=status.HTTP_201_CREATED) 
-def create_pl_equipment(pl_equipment: schemas.PL_Equipment, db: Session = Depends(get_db)):	
-	db_labor = db.query(models.Labor).filter(models.Labor.id == pl_equipment.labor_id).first()	
-	db_project = db.query(models.Project).filter(models.Project.id == pl_equipment.project_id).first()	
-					  
-	db_pl_equipment = models.PL_Equipment(	
-		equipment=pl_equipment.equipment,  
-		quantity=pl_equipment.quantity,		
-		unit_price=pl_equipment.unit_price,
-		amount=(pl_equipment.quantity * pl_equipment.unit_price),
-		#Relations
-		labor_id=db_labor.id,
-		project_id=db_project.id,	 
-	)
-	db.add(db_pl_equipment) 
-	db.commit()
-	db.refresh(db_pl_equipment)
-	return db_pl_equipment
-
-@app.get("/read_pl_equipments/", status_code=status.HTTP_201_CREATED)  
-def read_pl_equipments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
-	db_pl_equipments = db.query(models.PL_Equipment).offset(skip).limit(limit).all()    
-	return db_pl_equipments
-	
-@app.get("/read_pl_equipments_query/", status_code=status.HTTP_201_CREATED)  
-def read_pl_equipments_query(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
-	
-	query = db.query(models.PL_Equipment.quantity,
-					models.PL_Equipment.equipment,
-					models.PL_Equipment.unit_price,
-					models.PL_Equipment.amount,
-					models.PL_Equipment.id,
-					models.PL_Equipment.labor_id,
-					models.PL_Equipment.project_id,
+@app.post("/create_labor/", status_code=status.HTTP_201_CREATED)  #, response_model=schemas.Project
+def create_labor(labor: schemas.Labor, db: Session = Depends(get_db)):		
+	try:	
+		labors_in_db = db.query(
+							models.Project.project_name,
+							models.Project.id,
+							models.Labor.type,
+							models.Labor.id
+							).join(models.Labor, models.Project.id == models.Labor.project_id
+						).filter_by(type = labor.type
+						).filter_by(project_id = labor.project_id
+						).all()	
+		if 	len(labors_in_db) == 0:		
+			db_labor = models.Labor(
+				type=labor.type,	
+				desc_labor=labor.desc_labor,
+				inidate_labor=func.now(),
+				upddate_labor=func.now(),
+				project_id=labor.project_id, 
+			)			
+			db_parent_project = db.query(models.Project).filter(models.Project.id == labor.project_id).first()
+			db_parent_project.labors.append(db_labor)	
+			db.add(db_labor)   	
+			db.commit()
+			db.refresh(db_labor)			
+			return db_labor
+		else:
+			raise HTTPException(status_code=500, detail="Labor already exists in selected project")		
+	except IntegrityError as e:
+		raise HTTPException(status_code=500, detail="Integrity error")
+	except SQLAlchemyError as e: 
+		raise HTTPException(status_code=405, detail="Unexpected error when creating labor")
+		
+@app.get("/read_labors/", status_code=status.HTTP_201_CREATED)  
+def read_labors(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	db_labors = db.query(
+					models.Labor.id,
 					models.Labor.type,
-					models.Project.name 
-					  ).join(models.Labor, models.Project					  
-					  ).filter(models.PL_Equipment.labor_id == models.Labor.id,
-							models.PL_Equipment.project_id == models.Project.id
-					  ).all()
+					models.Labor.desc_labor,
+					models.Labor.inidate_labor,
+					models.Labor.enddate_labor,
+					models.Labor.is_active,
+					models.Project.project_name,
+					(models.Project.id).label('project_labor'),
+				).join(models.Labor, models.Project.id == models.Labor.project_id
+				).all()	
+	return db_labors
 	
-	return query 
-	
-@app.get("/read_pl_equipment_by_project/{project_id}", status_code=status.HTTP_201_CREATED)  
-def read_pl_equipment_by_project(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-	
-	query = db.query(models.PL_Equipment.labor_id, models.Labor.type
-						).join(models.Labor, models.Labor.id == models.PL_Equipment.labor_id
-						).group_by(models.PL_Equipment.labor_id
-						).filter(models.PL_Equipment.project_id == project_id).all()
-					  
-	return query
-	
-@app.get("/read_pl_equipment_by_project_labor/{project_id, labor_id}", status_code=status.HTTP_201_CREATED)  
-def read_pl_equipment_by_project_labor(project_id: str, labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-	
-	query = db.query(models.PL_Equipment.quantity,
-					models.PL_Equipment.equipment,
-					models.PL_Equipment.unit_price,
-					models.PL_Equipment.amount,
-					models.PL_Equipment.id,
-					models.PL_Equipment.labor_id,
-					models.PL_Equipment.project_id,
+@app.get("/read_labors_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
+def read_labors_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	db_labors = db.query(
+					models.Labor.id,
 					models.Labor.type,
-					models.Project.name 
-						).join(models.Labor, models.Project
-						).filter(models.PL_Equipment.project_id == project_id, models.PL_Equipment.labor_id == labor_id 
-						).all()
-					  
-	return query
+					models.Labor.desc_labor,
+					models.Labor.inidate_labor,
+					models.Labor.enddate_labor,
+					models.Labor.is_active,
+					models.Project.project_name,
+					(models.Project.id).label('project_labor'),
+				).join(models.Labor, models.Project.id == models.Labor.project_id
+				).filter_by(project_id = project_id
+				).all()	
+	return db_labors
 	
-@app.put("/update_pl_equipment/{id}", status_code=status.HTTP_201_CREATED) 
-def update_pl_equipment(id: str, upd_equipment: schemas.PL_EquipmentUPD, db: Session = Depends(get_db)):
-	db_pl_equipment = db.query(models.PL_Equipment).filter(models.PL_Equipment.id == id).first()
-	if db_pl_equipment is None:
-		raise HTTPException(status_code=404, detail="PL_Equipment not found")
-	db_pl_equipment.quantity=upd_equipment.quantity
-	db_pl_equipment.unit_price=upd_equipment.unit_price
-	db_pl_equipment.amount=(upd_equipment.quantity * upd_equipment.unit_price)
+@app.put("/update_labor/{labor_id}", status_code=status.HTTP_201_CREATED) 
+def update_labor(labor_id: str, upd_labor: schemas.LaborUPD, db: Session = Depends(get_db)):
+	db_labor = db.query(models.Labor).filter(models.Labor.id == labor_id).first()
+	if db_labor is None:
+		raise HTTPException(status_code=404, detail="Labor category not found")
+	db_labor.desc_labor=upd_labor.desc_labor
+	db_labor.upddate_labor=func.now()
 	db.commit()
-	db.refresh(db_pl_equipment)	
-	return db_pl_equipment	
+	db.refresh(db_labor)	
+	return db_labor
+	
+@app.put("/activate_labor/{id}", status_code=status.HTTP_201_CREATED) 
+def activate_labor(id: str, labor: schemas.LaborActive, db: Session = Depends(get_db)):
+	db_labor = db.query(models.Labor).filter(models.Labor.id == id).first()
+	if db_labor is None:
+		raise HTTPException(status_code=404, detail="Labor not found")
+	db_labor.is_active=labor.is_active;		
+	db.commit()
+	db.refresh(db_labor)	
+	return {"Response": "Labor successfully changed its status"}	
 
-@app.delete("/delete_pl_equipment/{id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def delete_pl_equipment(id: str, db: Session = Depends(get_db)):
-	db_pl_equipment = db.query(models.PL_Equipment).filter(models.PL_Equipment.id == id).first()
-	if db_pl_equipment is None:
-		raise HTTPException(status_code=404, detail="PL_Equipment not found")	
-	db.delete(db_pl_equipment)	
+@app.delete("/delete_labor/{labor_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
+def delete_labor(labor_id: str, db: Session = Depends(get_db)):
+	db_labor = db.query(models.Labor).filter(models.Labor.id == labor_id).first()
+	if db_labor is None:
+		raise HTTPException(status_code=404, detail="Labor not found")	
+	db.delete(db_labor)	
 	db.commit()
 	return {"Deleted": "Delete Successfuly"}
 
 #########################	
-#PL TASK
+#------TASK-------------
 #########################
 
-@app.post("/create_pl_task/", status_code=status.HTTP_201_CREATED) 
-def create_pl_task(pl_task: schemas.PL_Task, db: Session = Depends(get_db)):	
-	db_labor = db.query(models.Labor).filter(models.Labor.id == pl_task.labor_id).first()	
-	db_project = db.query(models.Project).filter(models.Project.id == pl_task.project_id).first()	
-	
-	db_pl_task = models.PL_Task(	
-		description=pl_task.description,  
-		mechanicals=pl_task.mechanicals,
-		hour=pl_task.hour,
-		hour_men=(pl_task.hour + pl_task.mechanicals),
-		price=pl_task.price,
-		#Relations
-		labor_id=db_labor.id,
-		project_id=db_project.id,	 
-	)
-	db.add(db_pl_task) 
-	db.commit()
-	db.refresh(db_pl_task)
-	return db_pl_task
+@app.post("/create_task/", status_code=status.HTTP_201_CREATED) 
+def create_task(task: schemas.Task, db: Session = Depends(get_db)):		
+	try:	
+		tasks_in_db = db.query(
+							models.Labor.type,
+							models.Task.id,
+							models.Task.description,							
+							(models.Labor.id).label('labor_parent')
+							).join(models.Task, models.Labor.id == models.Task.labor_task_id
+						).filter_by(description = task.description
+						).filter_by(labor_task_id = task.labor_task_id
+						).all()	
+		if 	len(tasks_in_db) == 0:		
+			db_task = models.Task(
+				description=task.description,	
+				mechanicals=task.mechanicals,
+				hour=task.hour,  
+				task_price=task.task_price,
+				hour_men=(task.hour * task.mechanicals),
+				inidate_task=func.now(),
+				upddate_task=func.now(),
+				is_active=True,
+				labor_task_id=task.labor_task_id,
+			)			
+			db_parent_labor = db.query(models.Labor).filter(models.Labor.id == task.labor_task_id).first()
+			db_parent_labor.tasks.append(db_task)	
+			db.add(db_task)   	
+			db.commit()
+			db.refresh(db_task)			
+			return db_task
+		else:
+			raise HTTPException(status_code=500, detail="Task already exists in selected Labor")		
+	except IntegrityError as e:
+		raise HTTPException(status_code=500, detail="Integrity error")
+	except SQLAlchemyError as e: 
+		raise HTTPException(status_code=405, detail="Unexpected error when creating task")	
 
-@app.get("/read_pl_task/", status_code=status.HTTP_201_CREATED)  
-def read_pl_task(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
-	db_pl_tasks = db.query(models.PL_Task).offset(skip).limit(limit).all()    
-	return db_pl_tasks
 	
-@app.get("/read_pl_tasks_query/", status_code=status.HTTP_201_CREATED)  
-def read_pl_tasks_query(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
-	
-	query = db.query(models.PL_Task.description,
-					models.PL_Task.mechanicals,
-					models.PL_Task.hour,
-					models.PL_Task.hour_men,
-					models.PL_Task.price,
-					models.PL_Task.is_active,
-					models.PL_Task.id,
-					models.PL_Task.labor_id,
-					models.PL_Task.project_id,
+@app.get("/read_tasks/", status_code=status.HTTP_201_CREATED)  
+def read_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
+	db_tasks = db.query(
+					models.Task.id,
+					models.Task.description,
+					models.Task.mechanicals,					
+					models.Task.hour,
+					models.Task.hour_men,
+					models.Task.task_price,
+					models.Task.inidate_task,
+					models.Task.upddate_task,
+					models.Task.enddate_task,
+					models.Task.is_active,
 					models.Labor.type,
-					models.Project.name 
-					  ).join(models.Labor, models.Project					  
-					  ).filter(models.PL_Task.labor_id == models.Labor.id,
-							models.PL_Task.project_id == models.Project.id
-					  ).all()
+					(models.Labor.id).label('labor_task'),
+				).join(models.Task, models.Labor.id == models.Task.labor_task_id
+				).all()	
 	
-	return query 
+	return db_tasks
 	
-@app.get("/read_pl_task_by_project/{project_id}", status_code=status.HTTP_201_CREATED)  
-def read_pl_task_by_project(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-	
-	query = db.query(models.PL_Task.labor_id, models.Labor.type
-						).join(models.Labor, models.Labor.id == models.PL_Task.labor_id
-						).group_by(models.PL_Task.labor_id
-						).filter(models.PL_Task.project_id == project_id).all()
-					  
-	return query
-	
-@app.get("/read_pl_task_by_project_labor/{project_id, labor_id}", status_code=status.HTTP_201_CREATED)  
-def read_pl_task_by_project_labor(project_id: str, labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-	
-	query = db.query(models.PL_Task.description,
-					models.PL_Task.mechanicals,
-					models.PL_Task.hour,
-					models.PL_Task.hour_men,
-					models.PL_Task.price,
-					models.PL_Task.is_active,
-					models.PL_Task.id,
-					models.PL_Task.labor_id,
-					models.PL_Task.project_id,
+@app.get("/read_tasks_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def read_tasks_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	db_tasks = db.query(
+					models.Task.id,
+					models.Task.description,
+					models.Task.mechanicals,
+					models.Task.hour,					
+					models.Task.inidate_task,
+					models.Task.upddate_task,
+					models.Task.enddate_task,
+					models.Task.is_active,
+					models.Task.hour_men,
+					models.Task.task_price,
 					models.Labor.type,
-					models.Project.name 
-						).join(models.Labor, models.Project
-						).filter(models.PL_Task.project_id == project_id, models.PL_Task.labor_id == labor_id 
-						).all()
-					  
-	return query
-
+					(models.Labor.id).label('labor_task'),
+				).join(models.Task, models.Labor.id == models.Task.labor_task_id
+				).filter_by(labor_task_id = labor_id
+				).all()	
+	return db_tasks
 	
-@app.put("/update_pl_task/{id}", status_code=status.HTTP_201_CREATED) 
-def update_pl_task(id: str, upd_pl: schemas.PL_TaskUPD, db: Session = Depends(get_db)):
-	db_pl_task = db.query(models.PL_Task).filter(models.PL_Task.id == id).first()
-	if db_pl_task is None:
-		raise HTTPException(status_code=404, detail="PL_Task not found")
-	db_pl_task.mechanicals=upd_pl.mechanicals
-	db_pl_task.hour=upd_pl.hour
-	db_pl_task.price=upd_pl.price
-	db_pl_task.hour_men=(upd_pl.hour *	upd_pl.mechanicals)
-	db.commit()
-	db.refresh(db_pl_task)	
-	return db_pl_task	
-
-@app.delete("/delete_pl_task/{id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def delete_pl_task(id: str, db: Session = Depends(get_db)):
-	db_pl_task = db.query(models.PL_Task).filter(PL_Task).first()
-	if db_pl_task is None:
-		raise HTTPException(status_code=404, detail="PL_Task not found")	
-	db.delete(db_pl_task)	
-	db.commit()
-	return {"Deleted": "Delete Successfuly"}
-
-@app.put("/activate_pl_task/{id}", status_code=status.HTTP_201_CREATED) 
-def activate_pl_task(id: str, task: schemas.PL_TaskActive, db: Session = Depends(get_db)):
-	db_task = db.query(models.PL_Task).filter(models.PL_Task.id == id).first()
+@app.put("/activate_task/{id}", status_code=status.HTTP_201_CREATED) 
+def activate_task(id: str, task: schemas.TaskActive, db: Session = Depends(get_db)):
+	db_task = db.query(models.Task).filter(models.Task.id == id).first()
 	if db_task is None:
-		raise HTTPException(status_code=404, detail="User not found")
+		raise HTTPException(status_code=404, detail="Task not found")
 	db_task.is_active=task.is_active;		
 	db.commit()
 	db.refresh(db_task)	
-	return {"Task": "Successfully changed"}	
-	
+	return {"Response": "Task successfully changed its status"}	
+		
+@app.put("/update_task/{id}", status_code=status.HTTP_201_CREATED) 
+def update_task(id: str, upd: schemas.TaskUPD, db: Session = Depends(get_db)):
+	db_task = db.query(models.Task).filter(models.Task.id == id).first()
+	if db_task is None:
+		raise HTTPException(status_code=404, detail="Task not found")
+	db_task.mechanicals=upd.mechanicals
+	db_task.hour=upd.hour
+	db_task.task_price=upd.task_price
+	db_task.hour_men=(upd.hour * upd.mechanicals)
+	db.commit()
+	db.refresh(db_task)	
+	return db_task	
 
+@app.delete("/delete_task/{id}", status_code=status.HTTP_201_CREATED) 
+def delete_task(id: str, db: Session = Depends(get_db)):
+	db_task = db.query(models.Task).filter(models.Task.id == id).first()
+	if db_task is None:
+		raise HTTPException(status_code=404, detail="Task not found")	
+	db.delete(db_task)	
+	db.commit()
+	return {"Deleted": "Delete Successfuly"}
+
+#########################
+#------EQUIPMENT--------- 
+#########################
+@app.post("/create_equipment/", status_code=status.HTTP_201_CREATED) 
+def create_equipment(equipment: schemas.Equipment, db: Session = Depends(get_db)):		
+	try:	
+		equipments_in_db = db.query(
+							models.Equipment.id,
+							models.Equipment.equipment_name,
+							models.Labor.type,							
+							(models.Labor.id).label('labor_parent')
+							).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
+						).filter_by(equipment_name = equipment.equipment_name
+						).filter_by(labor_equipment_id = equipment.labor_equipment_id
+						).all()	
+		if 	len(equipments_in_db) == 0:		
+			db_equipment = models.Equipment(
+				equipment_name=equipment.equipment_name,	
+				equipment_quantity=equipment.equipment_quantity,
+				equipment_unit_price=equipment.equipment_unit_price,  
+				equipment_amount=(equipment.equipment_unit_price * equipment.equipment_quantity), 
+				labor_equipment_id=equipment.labor_equipment_id,
+			)			
+			db_parent_labor = db.query(models.Labor).filter(models.Labor.id == equipment.labor_equipment_id).first()
+			db_parent_labor.equipments.append(db_equipment)	
+			db.add(db_equipment)   	
+			db.commit()
+			db.refresh(db_equipment)			
+			return db_equipment
+		else:
+			raise HTTPException(status_code=500, detail="Equipment already exists in selected Labor")		
+	except IntegrityError as e:
+		raise HTTPException(status_code=500, detail="Integrity error")
+	except SQLAlchemyError as e: 
+		raise HTTPException(status_code=405, detail="Unexpected error when creating equipment")		
+
+@app.get("/read_equipments/", status_code=status.HTTP_201_CREATED)  
+def read_equipments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
+	db_equipments = db.query(
+					models.Equipment.id,
+					models.Equipment.equipment_name,
+					models.Equipment.equipment_quantity,					
+					models.Equipment.equipment_unit_price,
+					models.Equipment.equipment_amount,
+					models.Labor.type,
+					(models.Labor.id).label('labor_equipment'),
+				).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
+				).all()	
+	
+	return db_equipments
+	
+@app.get("/read_equipments_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def read_equipments_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	db_equipments = db.query(
+					models.Equipment.id,
+					models.Equipment.equipment_name,
+					models.Equipment.equipment_quantity,
+					models.Equipment.equipment_unit_price,					
+					models.Equipment.equipment_amount,
+					models.Labor.type,
+					(models.Labor.id).label('labor_equipment'),
+				).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
+				).filter_by(labor_equipment_id = labor_id
+				).all()	
+	return db_equipments
+	
+@app.put("/update_equipment/{id}", status_code=status.HTTP_201_CREATED) 
+def update_equipment(id: str, upd: schemas.EquipmentUPD, db: Session = Depends(get_db)):
+	db_equipment = db.query(models.Equipment).filter(models.Equipment.id == id).first()
+	if db_equipment is None:
+		raise HTTPException(status_code=404, detail="Task not found")
+	db_equipment.equipment_quantity=upd.equipment_quantity
+	db_equipment.equipment_unit_price=upd.equipment_unit_price
+	db_equipment.equipment_amount=(upd.equipment_quantity * upd.equipment_unit_price)
+	db.commit()
+	db.refresh(db_equipment)	
+	return db_equipment	
+
+@app.delete("/delete_equipment/{id}", status_code=status.HTTP_201_CREATED) 
+def delete_equipment(id: str, db: Session = Depends(get_db)):
+	db_equipment = db.query(models.Equipment).filter(models.Equipment.id == id).first()
+	if db_equipment is None:
+		raise HTTPException(status_code=404, detail="Task not found")	
+	db.delete(db_equipment)	
+	db.commit()
+	return {"Deleted": "Delete Successfuly"}
+	
+#########################
+#-------MATERIAL---------
+#########################	
+
+@app.post("/create_material/", status_code=status.HTTP_201_CREATED) 
+def create_material(material: schemas.Material, db: Session = Depends(get_db)):		
+	try:	
+		materials_in_db = db.query(
+							models.Material.id,
+							models.Material.material_name,
+							models.Labor.type,							
+							(models.Labor.id).label('labor_parent')
+							).join(models.Material, models.Labor.id == models.Material.labor_material_id
+						).filter_by(material_name = material.material_name
+						).filter_by(labor_material_id = material.labor_material_id
+						).all()	
+		if 	len(materials_in_db) == 0:		
+			db_material = models.Material(
+				material_name=material.material_name,	
+				material_type=material.material_type,
+				material_quantity=material.material_quantity,
+				material_price=material.material_price,  
+				material_amount=(material.material_price * material.material_quantity), 
+				labor_material_id=material.labor_material_id,
+			)			
+			db_parent_labor = db.query(models.Labor).filter(models.Labor.id == material.labor_material_id).first()
+			db_parent_labor.materials.append(db_material)	
+			db.add(db_material)   	
+			db.commit()
+			db.refresh(db_material)			
+			return db_material
+		else:
+			raise HTTPException(status_code=500, detail="Material already exists in selected Labor")		
+	except IntegrityError as e:
+		raise HTTPException(status_code=500, detail="Integrity error")
+	except SQLAlchemyError as e: 
+		raise HTTPException(status_code=405, detail="Unexpected error when creating material")		
+
+@app.get("/read_materials/", status_code=status.HTTP_201_CREATED)  
+def read_materials(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
+	db_materials = db.query(
+					models.Material.id,
+					models.Material.material_name,
+					models.Material.material_type,
+					models.Material.material_quantity,					
+					models.Material.material_price,
+					models.Material.material_amount,
+					models.Labor.type,
+					(models.Labor.id).label('labor_material'),
+				).join(models.Material, models.Labor.id == models.Material.labor_material_id
+				).all()	
+	
+	return db_materials
+	
+@app.get("/read_materials_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def read_materials_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	db_materials = db.query(
+					models.Material.id,
+					models.Material.material_name,
+					models.Material.material_type,
+					models.Material.material_quantity,		
+					models.Material.material_price,							
+					models.Material.material_amount,
+					models.Labor.type,
+					(models.Labor.id).label('labor_material'),
+				).join(models.Material, models.Labor.id == models.Material.labor_material_id
+				).filter_by(labor_material_id = labor_id
+				).all()	
+	return db_materials
+	
+@app.put("/update_material/{id}", status_code=status.HTTP_201_CREATED) 
+def update_material(id: str, upd: schemas.MaterialUPD, db: Session = Depends(get_db)):
+	db_material = db.query(models.Material).filter(models.Material.id == id).first()
+	if db_material is None:
+		raise HTTPException(status_code=404, detail="Material not found")
+	db_material.material_quantity=upd.material_quantity
+	db_material.material_price=upd.material_price
+	db_material.material_amount=(upd.material_quantity * upd.material_price)
+	db.commit()
+	db.refresh(db_material)	
+	return db_material
+
+@app.delete("/delete_material/{id}", status_code=status.HTTP_201_CREATED) 
+def delete_material(id: str, db: Session = Depends(get_db)):
+	db_material = db.query(models.Material).filter(models.Material.id == id).first()
+	if db_material is None:
+		raise HTTPException(status_code=404, detail="Material not found")	
+	db.delete(db_material)	
+	db.commit()
+	return {"Response": "Delete Successfuly"}
+	
 ##################################
-###   STATISTICS for TASK ########
+###  STATISTICS FOR LABORS ID  ####
 ##################################
 
-@app.get("/summay_project_labors_task/{project_id}", status_code=status.HTTP_201_CREATED)  
-def summay_project_labors_task(project_id: str, db: Session = Depends(get_db)):  
-	
-	labors = db.query(
-					models.Labor.type, 
-					func.sum(models.PL_Task.price).label('total_amount'), 
-					func.sum(models.PL_Task.hour_men).label('total_hour_men'), 
-					func.count(models.PL_Task.id).label('labor_count'),
-					func.sum(models.PL_Task.mechanicals).label('labor_mechanicals'),
-					).join(models.Labor
-					).join(models.Project, models.Project.id == models.PL_Task.project_id
-					).group_by(models.PL_Task.labor_id).filter(models.PL_Task.project_id == project_id).all() 
-					
-	return labors
-	
-@app.get("/list_project_labor_tasks/{project_id}", status_code=status.HTTP_201_CREATED)  
-def list_project_labor_tasks(project_id: str, db: Session = Depends(get_db)):  
-	
-	labors = db.query(
-						models.Labor.type,
-						models.PL_Task.description,
-						models.PL_Task.mechanicals,
-						models.PL_Task.hour_men,
-						models.PL_Task.price,						
-					).filter(
-						models.PL_Task.labor_id == models.Labor.id,
-						models.PL_Task.project_id==project_id).order_by(models.Labor.type).all()
+#------------Example queries TASK here----------
 
-	return labors
+@app.get("/summary_amount_tasks_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def summary_amount_tasks_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	db_project_summary = db.query(
+					models.Labor.type,
+					func.sum(models.Task.hour_men).label('hour_men'),
+					func.sum(models.Task.task_price).label('task_price'),
+					func.count(models.Task.id).label('task_number'),
+				).join(models.Task, models.Labor.id == models.Task.labor_task_id
+				#).filter(models.Labor.is_active == True, #models.Task.is_active == True
+				).filter_by(labor_task_id = labor_id
+				).all()	
+	return db_project_summary
 
-#######################################
-###   STATISTICS for EQUIPMENT ########
-#######################################
-
-@app.get("/summay_project_labors_equipment/{project_id}", status_code=status.HTTP_201_CREATED)  
-def summay_project_labors_equipment(project_id: str, db: Session = Depends(get_db)):  
+@app.get("/summary_tasks_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
+def summary_tasks_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
-	equipment = db.query(
-					models.Labor.type, 
-					func.sum(models.PL_Equipment.amount).label('total_amount'), 
-					func.sum(models.PL_Equipment.quantity).label('total_quantity'), 
-					func.count(models.PL_Equipment.id).label('equipment_count'),
-					).join(models.Labor
-					).join(models.Project, models.Project.id == models.PL_Equipment.project_id
-					).group_by(models.PL_Equipment.labor_id).filter(models.PL_Equipment.project_id == project_id).all()
-					
-	return equipment
+	sub_query = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_amount'),
+	).select_from(
+		models.Task
+	#).filter(
+	#	models.Task.is_active == True 
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
 	
-@app.get("/list_project_labor_equipment/{project_id}", status_code=status.HTTP_201_CREATED)  
-def list_project_labor_equipment(project_id: str, db: Session = Depends(get_db)):  
+	query = db.query(
+		models.Labor.id,
+		models.Labor.type,
+		func.sum(sub_query.c.task_number).label('task_number'),
+		func.sum(sub_query.c.hour_men).label('hour_men'),
+		func.sum(sub_query.c.task_amount).label('task_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
+	).filter(
+		models.Project.id == project_id 		
+	).group_by(
+		models.Labor.id		
+	).all()
 	
-	equipment = db.query(
-						models.Labor.type,
-						models.PL_Equipment.equipment,
-						models.PL_Equipment.quantity,
-						models.PL_Equipment.unit_price,
-						models.PL_Equipment.amount,					
-					).filter(
-						models.PL_Equipment.labor_id == models.Labor.id,
-						models.PL_Equipment.project_id==project_id).order_by(models.Labor.type).all()
+	return query
 
-	return equipment
-
-
-#######################################
-###   STATISTICS for MATERIALS ########
-#######################################
-
-@app.get("/summay_project_labors_material/{project_id}", status_code=status.HTTP_201_CREATED)  
-def summay_project_labors_material(project_id: str, db: Session = Depends(get_db)):  
+@app.get("/summary_all_tasks_by_projects/", status_code=status.HTTP_201_CREATED)  
+def summary_all_tasks_by_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
-	material = db.query(
-					models.Labor.type, models.PL_Material.type_material,
-					func.sum(models.PL_Material.amount).label('total_amount'), 
-					func.sum(models.PL_Material.quantity).label('total_quantity'), 
-					func.count(models.PL_Material.type_material).label('type_count'),
-					func.count(models.PL_Material.id).label('material_count'),
-					).join(models.Labor
-					).join(models.Project, models.Project.id == models.PL_Material.project_id
-					).group_by(models.PL_Material.labor_id
-					).group_by(models.PL_Material.type_material
-					).filter(models.PL_Material.project_id == project_id).all()
-					
-	return material
+	sub_query = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_amount'),
+	).select_from(
+		models.Task
+	#).filter(
+	#	models.Task.is_active == True 
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
 	
-@app.get("/list_project_labor_material/{project_id}", status_code=status.HTTP_201_CREATED)  
-def list_project_labor_material(project_id: str, db: Session = Depends(get_db)):  
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		#models.Labor.type,
+		#models.Labor.id.label('labor_id'),
+		func.sum(sub_query.c.task_number).label('task_number'),
+		func.sum(sub_query.c.hour_men).label('hour_men'),
+		func.sum(sub_query.c.task_amount).label('task_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
+	).group_by(
+		models.Project.id, models.Labor.id		
+	).all()
 	
-	material = db.query(
-						models.Labor.type,
-						models.PL_Material.material,
-						models.PL_Material.quantity,
-						models.PL_Material.type_material,
-						models.PL_Material.amount,					
-					).filter(
-						models.PL_Material.labor_id == models.Labor.id,
-						models.PL_Material.project_id==project_id).order_by(models.Labor.type).all()
+	return query
+	
+@app.get("/summary_all_tasks/", status_code=status.HTTP_201_CREATED)  
+def summary_all_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).select_from(
+		models.Task
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	query = db.query(
+		func.sum(sub_query.c.task_number).label('task_number'),
+		func.sum(sub_query.c.hour_men).label('hour_men'),
+		func.sum(sub_query.c.task_price).label('task_price'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
+	).all()
+	
+	return query
+	
+#------------Example queries EQUIPMENT here----------
 
-	return material
+@app.get("/summary_amount_equipments_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def summary_amount_equipments_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	db_project_summary = db.query(
+					models.Labor.type,
+					func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+					func.count(models.Equipment.id).label('equipment_number'),
+				).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
+				#).filter(models.Labor.is_active == True
+				).filter_by(labor_equipment_id = labor_id
+				).all()	
+	return db_project_summary
+
+@app.get("/summary_equipments_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
+def summary_equipments_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Equipment
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	query = db.query(
+		models.Labor.id,
+		models.Labor.type,
+		func.sum(sub_query.c.equipment_number).label('equipment_number'),
+		func.sum(sub_query.c.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
+	).filter(
+		models.Project.id == project_id 		
+	).group_by(
+		models.Labor.id		
+	).all()
+	
+	return query
+
+@app.get("/summary_all_equipments_by_projects/", status_code=status.HTTP_201_CREATED)  
+def summary_all_equipments_by_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Equipment
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		#models.Labor.type,
+		#models.Labor.id.label('labor_id'),
+		func.sum(sub_query.c.equipment_number).label('equipment_number'),
+		func.sum(sub_query.c.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
+	).group_by(
+		models.Project.id, models.Labor.id		
+	).all()
+	
+	return query
+	
+@app.get("/summary_all_equipments/", status_code=status.HTTP_201_CREATED)  
+def summary_all_equipments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Equipment
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	query = db.query(
+		func.sum(sub_query.c.equipment_number).label('equipment_number'),
+		func.sum(sub_query.c.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
+	).all()
+	
+	return query
+	
+#------------Example queries MATERIAL here----------
+
+@app.get("/summary_amount_materials_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def summary_amount_materials_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	db_project_summary = db.query(
+					models.Labor.type,
+					models.Material.material_type,
+					func.sum(models.Material.material_amount).label('material_amount'),
+					func.count(models.Material.id).label('material_number'),
+					func.count(models.Material.material_type).label('material_number'),
+				).join(models.Material, models.Labor.id == models.Material.labor_material_id
+				).filter_by(labor_material_id = labor_id
+				).group_by(models.Material.material_type				
+				).all()	
+	return db_project_summary
+
+@app.get("/summary_materials_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
+def summary_materials_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Material.labor_material_id.label('labor_id'),
+		models.Material.material_type.label('material_type'),
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).select_from(
+		models.Material
+	).group_by(
+		models.Material.labor_material_id, models.Material.material_type
+	).subquery()
+	
+	query = db.query(
+		models.Labor.id,
+		models.Labor.type,
+		sub_query.c.material_type.label('material_type'),
+		func.sum(sub_query.c.material_number).label('material_number'),
+		func.sum(sub_query.c.material_amount).label('material_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
+	).filter(
+		models.Project.id == project_id 		
+	).group_by(
+		models.Labor.id, sub_query.c.material_type.label('material_type')
+	).all()
+	
+	return query
+
+@app.get("/summary_all_materials_by_projects/", status_code=status.HTTP_201_CREATED)  
+def summary_all_materials_by_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Material.labor_material_id.label('labor_id'),		
+		models.Material.material_type.label('material_type'),
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).select_from(
+		models.Material
+	).group_by(
+		models.Material.labor_material_id
+	).subquery()
+	
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		#models.Labor.type,
+		#models.Labor.id.label('labor_id'),
+		func.sum(sub_query.c.material_number).label('material_number'),
+		func.sum(sub_query.c.material_amount).label('material_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
+	).group_by(
+		models.Project.id, models.Labor.id	
+	).all()
+	
+	return query
+	
+@app.get("/summary_all_materials/", status_code=status.HTTP_201_CREATED)  
+def summary_all_materials(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Material.labor_material_id.label('labor_id'),		
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).select_from(
+		models.Material
+	).group_by(
+		models.Material.labor_material_id
+	).subquery()
+	
+	query = db.query(
+		func.sum(sub_query.c.material_number).label('material_number'),
+		func.sum(sub_query.c.material_amount).label('material_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	).all()
+	
+	return query
+	
+#--------------------ACTIVE TASK- BY PROJECTS--------------
+
+@app.get("/summary_task_active_status_by_project/", status_code=status.HTTP_201_CREATED)  
+def summary_task_active_status_by_project(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query_active = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('number_active'),
+	).select_from(
+		models.Task
+	).filter(
+		models.Task.is_active == True 
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_query_total = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('total_number'),
+	).select_from(
+		models.Task
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		models.Labor.type,
+		models.Labor.id.label('labor_id'),
+		sub_query_total.c.total_number.label('total_number'),
+		sub_query_active.c.number_active.label('number_active'),
+		(sub_query_total.c.total_number - sub_query_active.c.number_active).label('diff_active'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query_active, sub_query_active.c.labor_id == models.Labor.id
+	).join(
+		sub_query_total, sub_query_total.c.labor_id == models.Labor.id
+	).group_by(
+		models.Project.id, models.Labor.id	
+	).all()
+	
+	return query
+	
+@app.get("/summary_task_active_status_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
+def summary_task_active_status_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query_active = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('number_active'),
+	).select_from(
+		models.Task
+	).filter(
+		models.Task.is_active == True 
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_query_total = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('total_number'),
+	).select_from(
+		models.Task
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		models.Labor.type,
+		models.Labor.id.label('labor_id'),
+		sub_query_total.c.total_number.label('total_number'),
+		sub_query_active.c.number_active.label('number_active'),
+		(sub_query_total.c.total_number - sub_query_active.c.number_active).label('diff_active'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query_active, sub_query_active.c.labor_id == models.Labor.id
+	).join(
+		sub_query_total, sub_query_total.c.labor_id == models.Labor.id
+	).filter(
+		models.Project.id == project_id 		
+	).group_by(
+		models.Project.id, models.Labor.id	
+	).all()
+	
+	return query
+
+#--------------TOP PROJECTS------------	
+
+@app.get("/project_materials_top/", status_code=status.HTTP_201_CREATED)  
+def project_materials_top(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Material.labor_material_id.label('labor_id'),		
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).select_from(
+		models.Material
+	).group_by(
+		models.Material.labor_material_id
+	).subquery()
+	
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		func.sum(sub_query.c.material_number).label('material_number'),
+		func.sum(sub_query.c.material_amount).label('material_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	).group_by(
+		models.Project.id	
+	).order_by(
+		sub_query.c.material_amount.desc()
+	).first()	
+	
+	return query
+	
+@app.get("/project_tasks_top/", status_code=status.HTTP_201_CREATED)  
+def project_tasks_top(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Task.labor_material_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.task_price).label('task_amount'),
+	).select_from(
+		models.Task
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		func.sum(sub_query.c.task_number).label('task_number'),
+		func.sum(sub_query.c.task_amount).label('task_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	).group_by(
+		models.Project.id	
+	).order_by(
+		sub_query.c.task_amount.desc()
+	).first()	
+	
+	return query
+	
+@app.get("/project_equipments_top/", status_code=status.HTTP_201_CREATED)  
+def project_equipments_top(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Equipment
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		func.sum(sub_query.c.equipment_number).label('equipment_number'),
+		func.sum(sub_query.c.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	).group_by(
+		models.Project.id	
+	).order_by(
+		sub_query.c.equipment_amount.desc()
+	).first()	
+	
+	return query
