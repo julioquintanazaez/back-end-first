@@ -20,6 +20,10 @@ import schemas
 from database import SessionLocal, engine
 import init_db
 import config
+from fpdf import FPDF
+from fpdf_table import PDFTable, Align, add_image_local
+import asyncio
+import concurrent.futures
 
 #-------FAKE DB------------------------
 #User: julio:admin987*!!+  / sherlock: backer356 / marco:marco123
@@ -968,7 +972,7 @@ def summary_amount_materials_by_labor_id(labor_id: str, skip: int = 0, limit: in
 					models.Material.material_type,
 					func.sum(models.Material.material_amount).label('material_amount'),
 					func.count(models.Material.id).label('material_number'),
-					func.count(models.Material.material_type).label('material_number'),
+					func.count(models.Material.material_type).label('material_type'),
 				).join(models.Material, models.Labor.id == models.Material.labor_material_id
 				).filter_by(labor_material_id = labor_id
 				).group_by(models.Material.material_type				
@@ -1263,3 +1267,226 @@ def project_equipments_top(skip: int = 0, limit: int = 100, db: Session = Depend
 	).first()	
 	
 	return query
+	
+
+#----------PDR CREATION-------------------	
+def formar_query(query):
+
+	data = []
+	for row in query:
+		temp_row = []
+		for item in row:
+			temp_row.append(str(item))
+		data.append(temp_row)
+
+	return data
+	
+def formar_query_totals(query):
+
+	data = []
+	for row in query:
+		for item in row:
+			data.append(str(item))
+
+	return data
+	
+def formar_query_dict(query):
+
+	data = []
+	for item in query:		
+		data.append(str(item))
+	return data
+
+def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
+	
+	db_project_labor = db.query(
+		models.Project.project_name,
+		models.Project.desc_proj,
+		models.Project.enddate_proj,
+		models.Project.manager,
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).filter(
+		models.Labor.id == labor_id
+	).first()
+
+	properties = formar_query_dict(db_project_labor)
+	
+	#Create table
+	pdf = PDFTable()		
+	#Setup page style
+	pdf.alias_nb_pages()
+	#Setup configuration
+	#pdf.set_font('helvetica', 12)		
+	#HEADER
+	#Add image
+	pdf.image('./logo.png', x=10, y=8, w=10)
+	# Top margin: move 85 down
+	pdf.ln(15) 			 
+	pdf.cell(0, 5, f'Project name: {properties[0]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Work description: {properties[1]}', 'L', ln=1)
+	pdf.cell(0, 5, f'End date: {properties[2]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Manager: {properties[3]}', 'L', ln=1)
+	pdf.ln(10) 
+	pdf.cell(0, 5, f'Summary report', 'C', ln=1)	
+	# Line break
+	pdf.ln(15)
+	
+	#BODY
+	#Compute data
+	db_task_summary = db.query(
+			models.Labor.type,
+			func.count(models.Task.id).label('task_number'),
+			func.sum(models.Task.hour_men).label('hour_men'),			
+			func.sum(models.Task.task_price).label('task_price'),			
+		).join(models.Task, models.Labor.id == models.Task.labor_task_id
+		).filter_by(labor_task_id = labor_id
+		).all()	
+		
+	db_task_total = db.query(
+		func.sum(models.Task.hour_men).label('hour_men'),		
+		func.sum(models.Task.task_price).label('task_price'),
+	).select_from(
+		models.Labor
+	).join(
+		models.Task, models.Labor.id == models.Task.labor_task_id
+	).filter(
+		models.Labor.id == labor_id
+	).all()	
+		
+	data_task = formar_query(db_task_summary)	
+	totals_task = formar_query_totals(db_task_total)
+	#Create table
+	# table header
+	pdf.table_header(['Labor', '# Tasks', 'Hour/men', 'Price'], align=Align.C)
+	# table rows
+	for task in data_task:
+		pdf.table_row(task, align=Align.C)		
+	#Add totals
+	print(totals_task)
+	if len(totals_task) > 0:
+		total_men = totals_task[0]
+		total_task = totals_task[1]
+		pdf.table_row(['', 'Totals', total_men, total_task], align=Align.C)
+	else:	
+		pdf.table_row(['', 'Totals', 0, 0], align=Align.C)
+	
+	#----------------------------------
+	#Create table
+	pdf.add_page()
+	#Setup configuration
+	#pdf.set_font('helvetica', 12)	
+	#HEADER
+	#Add image
+	pdf.image('./logo.png', x=10, y=8, w=10)
+	# Top margin: move 85 down
+	pdf.ln(15) 			 
+	pdf.cell(0, 5, f'Project name: Burlington', 'L', ln=1)
+	pdf.cell(0, 5, f'End date: 10/01/2024', 'L', ln=1)
+	pdf.cell(0, 5, f'Manager: Julio Cesar Quintana', 'L', ln=1)
+	pdf.ln(10) 
+	pdf.cell(0, 5, f'Summary report', 'C', ln=1)	
+	# Line break
+	pdf.ln(15)
+	
+	#Compute data
+	db_equipment_summary = db.query(
+			models.Labor.type,
+			func.count(models.Equipment.id).label('equipment_number'),
+			func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+		).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
+		).filter_by(labor_equipment_id = labor_id
+		).all()	
+	
+	db_equipment_total = db.query(
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Labor
+	).join(
+		models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
+	).filter(
+		models.Labor.id == labor_id
+	).all()	
+	
+	data_equipment = formar_query(db_equipment_summary)
+	total_equipment = formar_query_totals(db_equipment_total)		
+	#BODY
+	# table header
+	pdf.table_header(['Labor', '# Equipments', 'Amount'], align=Align.C)
+	# table rows
+	for equipment in data_equipment:
+		pdf.table_row(equipment, align=Align.C)	
+	#Add totals
+	print(total_equipment)
+	if len(total_equipment) > 0:
+		total_amount = total_equipment[0]
+		pdf.table_row(['', 'Total', total_amount], align=Align.C)
+	else:	
+		pdf.table_row(['', 'Total', 0], align=Align.C)	
+	
+	#----------------------------------
+	#Create table
+	pdf.add_page()
+	#Setup configuration
+	#pdf.set_font('helvetica', 'b', 12)	
+	#HEADER
+	#Add image
+	pdf.image('./logo.png', x=10, y=8, w=10)
+	# Top margin: move 85 down
+	pdf.ln(15) 			 
+	pdf.cell(0, 5, f'Project name: Burlington', 'L', ln=1)
+	pdf.cell(0, 5, f'End date: 10/01/2024', 'L', ln=1)
+	pdf.cell(0, 5, f'Manager: Julio Cesar Quintana', 'L', ln=1)
+	pdf.ln(10) 
+	pdf.cell(0, 5, f'Summary report', 'C', ln=1)	
+	# Line break
+	pdf.ln(15)
+	
+	#Compute data
+	db_material_summary = db.query(
+			models.Labor.type,
+			models.Material.material_type,
+			func.count(models.Material.id).label('material_number'),
+			func.sum(models.Material.material_amount).label('material_amount'),
+		).join(models.Material, models.Labor.id == models.Material.labor_material_id
+		).filter_by(labor_material_id = labor_id
+		).group_by(models.Material.material_type				
+		).all()	
+
+	db_material_total = db.query(
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).select_from(
+		models.Labor
+	).join(
+		models.Material, models.Labor.id == models.Material.labor_material_id
+	).filter(
+		models.Labor.id == labor_id
+	).all()	
+		
+	data_material = formar_query(db_material_summary)
+	total_material = formar_query_totals(db_material_total)		
+	#BODY
+	# table header
+	pdf.table_header(['Labor', 'Type', '# Materials', 'Amount'], align=Align.C)
+	# table rows	
+	for material in data_material:
+		pdf.table_row(material, align=Align.C)	
+	#Add totals
+	print(total_material)
+	if len(total_material) > 0:
+		total_amount = total_material[0]
+		pdf.table_row(['', '', 'Total', total_amount], align=Align.C)
+	else:	
+		pdf.table_row(['', '', 'Total', 0], align=Align.C)		
+	
+	return pdf.output()
+	
+@app.get("/pdf_report_for_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def pdf_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):	
+	
+	headers = {'Content-Disposition': 'attachment; filename="output.pdf"'} #inline / attachment
+	output = report_by_labor_id(labor_id, db)	
+
+	return Response(bytes(output), headers=headers, media_type='application/pdf')
