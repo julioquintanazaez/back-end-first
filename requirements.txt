@@ -1,7 +1,7 @@
 aiosqlite==0.19.0
 annotated-types==0.6.0
 anyio==3.7.1
-backports.zoneinfo==0.2.1;python_version<"3.9"
+backports.zoneinfo==0.2.1;python_version<"3.8.13"
 bcrypt==4.1.1
 cffi==1.16.0
 charset-normalizer==3.3.2
