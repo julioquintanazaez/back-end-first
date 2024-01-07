@@ -8,4 +8,7 @@
 __pycache__/
 node_modules/
 
+#Ignore requirements if do not change modules
+*.txt
+
 

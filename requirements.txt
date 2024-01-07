@@ -30,8 +30,8 @@ pillow==10.2.0
 psycopg==3.1.13
 pyasn1==0.5.1
 pycparser==2.21
-pydantic==1.9.0;python_version<"3.9"
-pydantic_core==2.0.1;python_version<"3.9"
+pydantic==1.9.0;python_version<="3.9"
+pydantic_core==2.0.1;python_version<="3.9"
 PyJWT==2.8.0
 python-dotenv==1.0.0
 python-jose==3.3.0
