@@ -43,12 +43,6 @@ app = FastAPI()
 #----SETUP MIDDLEWARES--------------------
 
 # Allow these origins to access the API
-"""
-"https://tools.slingacademy.com",
-"https://www.slingacademy.com",
-"http://localhost.tiangolo.com",
-"https://localhost.tiangolo.com",	
-"""
 origins = [	
 	"http://my-app-4bad.onrender.com",
 	"https://my-app-4bad.onrender.com",		
@@ -328,6 +322,27 @@ def update_project(project_id: str, project: schemas.Project, db: Session = Depe
 	db.commit()
 	db.refresh(db_project)	
 	return db_project
+	
+@app.put("/update_project_date/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
+def update_project_date(project_id: str, project: schemas.ProjectUpdDate, db: Session = Depends(get_db)):
+	db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+	if db_project is None:
+		raise HTTPException(status_code=404, detail="Project not found")
+	db_project.upddate_proj = func.now()
+	db_project.enddate_proj = project.enddate_proj
+	db.commit()
+	db.refresh(db_project)	
+	return db_project
+	
+@app.put("/activate_project/{id}", status_code=status.HTTP_201_CREATED) 
+def activate_project(id: str, project: schemas.LaborActive, db: Session = Depends(get_db)):
+	db_project = db.query(models.Project).filter(models.Project.id == id).first()
+	if db_project is None:
+		raise HTTPException(status_code=404, detail="Project not found")
+	db_project.is_active=project.is_active;		
+	db.commit()
+	db.refresh(db_project)	
+	return {"Response": "Project successfully changed its status"}	
 
 @app.delete("/delete_project/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
 def delete_project(project_id: str, db: Session = Depends(get_db)):
@@ -413,6 +428,17 @@ def update_labor(labor_id: str, upd_labor: schemas.LaborUPD, db: Session = Depen
 		raise HTTPException(status_code=404, detail="Labor category not found")
 	db_labor.desc_labor=upd_labor.desc_labor
 	db_labor.upddate_labor=func.now()
+	db.commit()
+	db.refresh(db_labor)	
+	return db_labor
+
+@app.put("/update_labor_date/{labor_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
+def update_labor_date(labor_id: str, labor: schemas.LaborUpdDate, db: Session = Depends(get_db)):
+	db_labor = db.query(models.Labor).filter(models.Labor.id == labor_id).first()
+	if db_labor is None:
+		raise HTTPException(status_code=404, detail="Labor not found")
+	db_labor.upddate_labor = func.now()
+	db_labor.enddate_labor = labor.enddate_labor
 	db.commit()
 	db.refresh(db_labor)	
 	return db_labor
@@ -516,7 +542,7 @@ def read_tasks_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: S
 				).join(models.Task, models.Labor.id == models.Task.labor_task_id
 				).filter_by(labor_task_id = labor_id
 				).all()	
-	return db_tasks
+	return db_tasks	
 	
 @app.put("/activate_task/{id}", status_code=status.HTTP_201_CREATED) 
 def activate_task(id: str, task: schemas.TaskActive, db: Session = Depends(get_db)):
@@ -537,6 +563,17 @@ def update_task(id: str, upd: schemas.TaskUPD, db: Session = Depends(get_db)):
 	db_task.hour=upd.hour
 	db_task.task_price=upd.task_price
 	db_task.hour_men=(upd.hour * upd.mechanicals)
+	db.commit()
+	db.refresh(db_task)	
+	return db_task
+
+@app.put("/update_labor_date/{task_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
+def update_labor_date(task_id: str, task: schemas.TaskUpdDate, db: Session = Depends(get_db)):
+	db_task = db.query(models.Task).filter(models.Task.id == labor_id).first()
+	if db_task is None:
+		raise HTTPException(status_code=404, detail="Task not found")
+	db_task.upddate_task = func.now()
+	db_task.enddate_task = task.enddate_task
 	db.commit()
 	db.refresh(db_task)	
 	return db_task	
@@ -972,7 +1009,7 @@ def summary_amount_materials_by_labor_id(labor_id: str, skip: int = 0, limit: in
 					models.Material.material_type,
 					func.sum(models.Material.material_amount).label('material_amount'),
 					func.count(models.Material.id).label('material_number'),
-					func.count(models.Material.material_type).label('material_type'),
+					func.count(models.Material.material_type).label('material_type_number'),
 				).join(models.Material, models.Labor.id == models.Material.labor_material_id
 				).filter_by(labor_material_id = labor_id
 				).group_by(models.Material.material_type				
@@ -1297,6 +1334,256 @@ def formar_query_dict(query):
 		data.append(str(item))
 	return data
 
+def report_equipments_by_labor_id(labor_id: str, db: Session):
+
+	db_project_labor = db.query(
+		models.Project.project_name,
+		models.Project.desc_proj,
+		models.Project.enddate_proj,
+		models.Project.manager,
+		models.Labor.type
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).filter(
+		models.Labor.id == labor_id
+	).first()
+	
+	db_all_equipments = db.query(
+		models.Equipment.equipment_name,
+		models.Equipment.equipment_quantity,
+		models.Equipment.equipment_unit_price,					
+		models.Equipment.equipment_amount,
+	).select_from(
+		models.Equipment
+	).filter_by(
+		labor_equipment_id = labor_id		
+	).all()
+	
+	db_equipment_total = db.query(
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Labor
+	).join(
+		models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
+	).filter(
+		models.Labor.id == labor_id
+	).all()	
+	
+	properties = formar_query_dict(db_project_labor)
+	data_equipments = formar_query(db_all_equipments)
+	total_equipment = formar_query_totals(db_equipment_total)	
+	
+	#Create table
+	pdf = PDFTable()		
+	#Setup page style
+	pdf.alias_nb_pages()
+	#Setup configuration
+	#HEADER
+	#Add image
+	pdf.image('./logo.png', x=10, y=8, w=10)
+	# Top margin: move 85 down
+	pdf.ln(15) 			 
+	pdf.cell(0, 5, f'Project name: {properties[0]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Work description: {properties[1]}', 'L', ln=1)
+	pdf.cell(0, 5, f'End date: {properties[2]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Manager: {properties[3]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Labor: {properties[4]}', 'L', ln=1)
+	pdf.ln(10) 
+	pdf.cell(0, 5, f'Equipments report', 'C', ln=1)	
+	# Line break
+	pdf.ln(15)
+			
+	# table header
+	pdf.table_header(['Name', 'Unit price', 'Quantity', 'Amount'], align=Align.C)
+	# table rows
+	for equipment_row in data_equipments:
+		pdf.table_row(equipment_row, align=Align.C)		
+	#Add totals
+	pdf.set_font('Arial', 'B', 10)
+	if len(total_equipment) > 0:
+		total_amount = total_equipment[0]
+		pdf.table_row(['', '', 'Total', total_amount], align=Align.C)
+	else:	
+		pdf.table_row(['', '', 'Total', 0], align=Align.C)					
+				
+	return pdf.output()
+	
+@app.get("/pdf_equipment_report_for_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def pdf_equipment_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):		
+	headers = {'Content-Disposition': 'attachment; filename="equipments.pdf"'} 
+	output = report_equipments_by_labor_id(labor_id, db)	
+	return Response(bytes(output), headers=headers, media_type='application/pdf')
+
+def report_tasks_by_labor_id(labor_id: str, db: Session):
+
+	db_project_labor = db.query(
+		models.Project.project_name,
+		models.Project.desc_proj,
+		models.Project.enddate_proj,
+		models.Project.manager,
+		models.Labor.type
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).filter(
+		models.Labor.id == labor_id
+	).first()
+	
+	db_all_tasks = db.query(
+		models.Task.description,
+		models.Task.mechanicals,
+		models.Task.hour,					
+		models.Task.hour_men,
+		models.Task.task_price,
+	).select_from(
+		models.Task
+	).filter_by(
+		labor_task_id = labor_id		
+	).all()
+	
+	db_task_total = db.query(
+		func.sum(models.Task.hour_men).label('hour_men'),		
+		func.sum(models.Task.task_price).label('task_price'),
+	).select_from(
+		models.Labor
+	).join(
+		models.Task, models.Labor.id == models.Task.labor_task_id
+	).filter(
+		models.Labor.id == labor_id
+	).all()	
+		
+	properties = formar_query_dict(db_project_labor)
+	data_task = formar_query(db_all_tasks)
+	totals_task = formar_query_totals(db_task_total)
+	
+	#Create table
+	pdf = PDFTable()		
+	#Setup page style
+	pdf.alias_nb_pages()
+	#Setup configuration
+	#HEADER
+	#Add image
+	pdf.image('./logo.png', x=10, y=8, w=10)
+	# Top margin: move 85 down
+	pdf.ln(15) 			 
+	pdf.cell(0, 5, f'Project name: {properties[0]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Work description: {properties[1]}', 'L', ln=1)
+	pdf.cell(0, 5, f'End date: {properties[2]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Manager: {properties[3]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Labor: {properties[4]}', 'L', ln=1)
+	pdf.ln(10) 
+	pdf.cell(0, 5, f'Tasks report', 'C', ln=1)	
+	# Line break
+	pdf.ln(15)
+			
+	# table header
+	pdf.table_header(['Description', 'Mechanicals', 'Hour', 'Hour/Men', 'Price'], align=Align.C)
+	# table rows
+	for task_row in data_task:
+		pdf.table_row(task_row, align=Align.C)		
+	#Add totals
+	pdf.set_font('Arial', 'B', 10)
+	if len(totals_task) > 0:
+		total_men = totals_task[0]
+		total_task = totals_task[1]
+		pdf.table_row(['', '', 'Totals', total_men, total_task], align=Align.C)
+	else:	
+		pdf.table_row(['', '', 'Totals', 0, 0], align=Align.C)			
+				
+	return pdf.output()
+	
+@app.get("/pdf_task_report_for_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def pdf_task_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):		
+	headers = {'Content-Disposition': 'attachment; filename="tasks.pdf"'} 
+	output = report_tasks_by_labor_id(labor_id, db)	
+	return Response(bytes(output), headers=headers, media_type='application/pdf')
+
+def report_materials_by_labor_id(labor_id: str, db: Session):
+
+	db_project_labor = db.query(
+		models.Project.project_name,
+		models.Project.desc_proj,
+		models.Project.enddate_proj,
+		models.Project.manager,
+		models.Labor.type
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).filter(
+		models.Labor.id == labor_id
+	).first()
+	
+	db_all_materials = db.query(
+		models.Material.material_name,
+		models.Material.material_type,
+		models.Material.material_quantity,					
+		models.Material.material_price,
+		models.Material.material_amount,
+	).select_from(
+		models.Material
+	).filter_by(
+		labor_material_id = labor_id		
+	).all()
+	
+	db_material_total = db.query(
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).select_from(
+		models.Labor
+	).join(
+		models.Material, models.Labor.id == models.Material.labor_material_id
+	).filter(
+		models.Labor.id == labor_id
+	).all()	
+		
+	properties = formar_query_dict(db_project_labor)
+	data_material = formar_query(db_all_materials)
+	total_material = formar_query_totals(db_material_total)
+	
+	#Create table
+	pdf = PDFTable()		
+	#Setup page style
+	pdf.alias_nb_pages()
+	#Setup configuration
+	#HEADER
+	#Add image
+	pdf.image('./logo.png', x=10, y=8, w=10)
+	# Top margin: move 85 down
+	pdf.ln(15) 			 
+	pdf.cell(0, 5, f'Project name: {properties[0]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Work description: {properties[1]}', 'L', ln=1)
+	pdf.cell(0, 5, f'End date: {properties[2]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Manager: {properties[3]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Labor: {properties[4]}', 'L', ln=1)
+	pdf.ln(10) 
+	pdf.cell(0, 5, f'Materials report', 'C', ln=1)	
+	# Line break
+	pdf.ln(15)
+			
+	# table header
+	pdf.table_header(['Name', 'Type', 'Quantity', 'Price', 'Amount'], align=Align.C)
+	# table rows
+	for material_row in data_material:
+		pdf.table_row(material_row, align=Align.C)		
+	#Add totals
+	pdf.set_font('Arial', 'B', 10)
+	if len(total_material) > 0:
+		total_amount = total_material[0]
+		pdf.table_row(['', '', '', 'Total', total_amount], align=Align.C)
+	else:	
+		pdf.table_row(['', '', '', 'Total', 0], align=Align.C)			
+				
+	return pdf.output()
+	
+@app.get("/pdf_materials_report_for_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+def pdf_materials_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):		
+	headers = {'Content-Disposition': 'attachment; filename="materials.pdf"'} 
+	output = report_materials_by_labor_id(labor_id, db)	
+	return Response(bytes(output), headers=headers, media_type='application/pdf')
+
 def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	
 	db_project_labor = db.query(
@@ -1365,7 +1652,7 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	for task in data_task:
 		pdf.table_row(task, align=Align.C)		
 	#Add totals
-	print(totals_task)
+	pdf.set_font('Arial', 'B', 10)
 	if len(totals_task) > 0:
 		total_men = totals_task[0]
 		total_task = totals_task[1]
@@ -1419,7 +1706,7 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	for equipment in data_equipment:
 		pdf.table_row(equipment, align=Align.C)	
 	#Add totals
-	print(total_equipment)
+	pdf.set_font('Arial', 'B', 10)
 	if len(total_equipment) > 0:
 		total_amount = total_equipment[0]
 		pdf.table_row(['', 'Total', total_amount], align=Align.C)
@@ -1474,7 +1761,7 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	for material in data_material:
 		pdf.table_row(material, align=Align.C)	
 	#Add totals
-	print(total_material)
+	pdf.set_font('Arial', 'B', 10)
 	if len(total_material) > 0:
 		total_amount = total_material[0]
 		pdf.table_row(['', '', 'Total', total_amount], align=Align.C)
@@ -1484,9 +1771,7 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	return pdf.output()
 	
 @app.get("/pdf_report_for_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def pdf_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):	
-	
+def pdf_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):		
 	headers = {'Content-Disposition': 'attachment; filename="output.pdf"'} #inline / attachment
 	output = report_by_labor_id(labor_id, db)	
-
 	return Response(bytes(output), headers=headers, media_type='application/pdf')

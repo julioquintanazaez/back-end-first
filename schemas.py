@@ -48,6 +48,22 @@ class TokenData(BaseModel):
 #-------------------------
 #-------PROJECT-------------
 #-------------------------
+class ProjectActive(BaseModel):
+	is_active: Union[bool, None] = None
+			
+	class Config:
+		orm_mode = True
+		allow_population_by_field_name = True
+		arbitrary_types_allowed = True	
+		
+class ProjectUpdDate(BaseModel):
+	enddate_proj : Union[date, None] = None
+			
+	class Config:
+		orm_mode = True
+		allow_population_by_field_name = True
+		arbitrary_types_allowed = True	
+		
 class Project(BaseModel):
 	project_name : str
 	desc_proj : str 
@@ -86,6 +102,14 @@ class LaborUPD(BaseModel):
 		allow_population_by_field_name = True
 		arbitrary_types_allowed = True
 		
+class LaborUpdDate(BaseModel):
+	enddate_labor : Union[date, None] = None
+			
+	class Config:
+		orm_mode = True
+		allow_population_by_field_name = True
+		arbitrary_types_allowed = True	
+		
 class Labor(BaseModel):
 	type : str	
 	desc_labor : str
@@ -118,6 +142,14 @@ class TaskUPD(BaseModel):
 	mechanicals : int
 	hour : int
 	task_price : float
+			
+	class Config:
+		orm_mode = True
+		allow_population_by_field_name = True
+		arbitrary_types_allowed = True	
+
+class TaskUpdDate(BaseModel):
+	enddate_task : Union[date, None] = None
 			
 	class Config:
 		orm_mode = True
