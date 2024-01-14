@@ -4,18 +4,34 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Float, St
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from fastapi_utils.guid_type import GUID, GUID_DEFAULT_SQLITE
+from sqlalchemy.types import TypeDecorator, String
+import json
 
 from uuid import UUID, uuid4  
 
+class JSONEncodeDict(TypeDecorator):
+	impl = String
+	
+	def process_bind_param(self, value, dialect):
+		if value is not None:
+			value = json.dumps(value)
+		return value
+
+	def process_result_value(self, value, dialect):
+		if value is not None:
+			value = json.loads(value)
+		return value
+		
 class User(Base):
 	__tablename__ = "user"
 	
 	username = Column(String(30), primary_key=True, unique=True, index=True) 
 	full_name = Column(String(50), nullable=True, index=True) 
 	email = Column(String(30), nullable=False, index=True) 
-	role = Column(String(15), nullable=False, index=True) #Scopes
-	disable = Column(Boolean, nullable=True, default=False)	
-	hashed_password = Column(String(100), nullable=True, default=True)	
+	#role = Column(String(15), nullable=False, index=True)#List[] #Scopes
+	role = Column(JSONEncodeDict)
+	disable = Column(Boolean, nullable=True, default=True)	
+	hashed_password = Column(String(100), nullable=True, default=False)	
 
 class Project(Base):  
 	__tablename__ = "project"

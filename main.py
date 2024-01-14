@@ -26,7 +26,7 @@ import asyncio
 import concurrent.futures
 
 #-------FAKE DB------------------------
-#User: julio:admin987*!!+  / sherlock: backer356 / marco:marco123
+#User: julio:admin123  / sherlock: backer356 / marco:marco123
 #-------------------------------------
 models.Base.metadata.create_all(bind=engine)
 
@@ -113,7 +113,7 @@ def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=5)
+        expire = datetime.utcnow() + timedelta(minutes=5) #15
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -152,8 +152,8 @@ async def get_current_user(
 	if user is None:
 		raise credentials_exception
 		
-	for user_scope in token_data.scopes:
-		if user_scope not in security_scopes.scopes:
+	for user_scope in security_scopes.scopes:
+		if user_scope not in token_data.scopes:
 			raise HTTPException(
 				status_code=status.HTTP_401_UNAUTHORIZED,
 				detail="Not enough permissions",
@@ -162,11 +162,11 @@ async def get_current_user(
 			
 	return user
 	
-async def get_current_active_user(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["admin", "manager", "user"])]):
+async def get_current_active_user(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["admin"])]):  #, "manager", "user"
 	if current_user.disable:
 		print({"USER AUTENTICATED" : current_user.disable})
 		print({"USER ROLES" : current_user.role})
-		raise HTTPException(status_code=400, detail="Inactive user")
+		raise HTTPException(status_code=400, detail="Disable user")
 	return current_user
 
 #------------------------------------
@@ -183,7 +183,7 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
 	print(form_data.scopes)
 	print(user.role)
 	access_token = create_access_token(
-		data={"sub": user.username, "scopes": [user.role]},   #form_data.scopes
+		data={"sub": user.username, "scopes": user.role},   #form_data.scopes
 		expires_delta=access_token_expires
 	)
 	return {"access_token": access_token, "token_type": "Bearer"}
@@ -192,15 +192,28 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
 def index():
 	return {"Application": "Hello from developers"}
 	
-@app.get("/users/me/", response_model=schemas.User)
-async def read_users_me(current_user: Annotated[schemas.User, Security(get_current_active_user, scopes=["admin", "manager", "user"])]):
+@app.get("/get_restricted_user")
+async def get_restricted_user(current_user: Annotated[schemas.User, Depends(get_current_active_user)]):
+    return current_user
+	
+@app.get("/get_authenticated_admin_resources", response_model=schemas.User)
+async def get_authenticated_admin_resources(current_user: Annotated[schemas.User, Security(get_current_active_user, scopes=["manager"])]):
+    return current_user
+	
+@app.get("/get_authenticated_edition_resources", response_model=schemas.User)
+async def get_authenticated_edition_resources(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])]):
+    return current_user
+	
+@app.get("/get_user_status", response_model=schemas.User)
+async def get_user_status(current_user: Annotated[schemas.User, Depends(get_current_user)]):
     return current_user
 	
 #########################
 ###   USERS ADMIN  ######
 #########################
+	
 @app.post("/create_user/", status_code=status.HTTP_201_CREATED)  
-def create_user(user: schemas.UserInDB, db: Session = Depends(get_db)):
+def create_user(user: schemas.UserInDB, db: Session = Depends(get_db)): #Por el momento no tiene restricciones
 	if db.query(models.User).filter(models.User.username == user.username).first() :
 		raise HTTPException( 
 			status_code=400,
@@ -220,15 +233,14 @@ def create_user(user: schemas.UserInDB, db: Session = Depends(get_db)):
 	return {f"User: {db_user.username}": "Succesfully created"}
 	
 @app.get("/read_users/", status_code=status.HTTP_201_CREATED)    #current_user: Annotated[schemas.User, Security(get_current_user, scopes=["admin"])]
-def read_users(
-		skip: int = 0, limit: int = 100,
-		db: Session = Depends(get_db)
-	):    	
+def read_users(current_user: Annotated[schemas.User, Depends(get_current_active_user)],
+		skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    	
 	db_users = db.query(models.User).offset(skip).limit(limit).all()    
 	return db_users
 
 @app.put("/update_user/{username}", status_code=status.HTTP_201_CREATED) 
-def update_user(username: str, new_user: schemas.UserUPD, db: Session = Depends(get_db)):
+def update_user(current_user: Annotated[schemas.User, Depends(get_current_active_user)], 
+				username: str, new_user: schemas.UserUPD, db: Session = Depends(get_db)):
 	db_user = db.query(models.User).filter(models.User.username == username).first()
 	if db_user is None:
 		raise HTTPException(status_code=404, detail="User not found")
@@ -240,7 +252,8 @@ def update_user(username: str, new_user: schemas.UserUPD, db: Session = Depends(
 	return db_user	
 	
 @app.put("/activate_user/{username}", status_code=status.HTTP_201_CREATED) 
-def activate_user(username: str, new_user: schemas.UserActivate, db: Session = Depends(get_db)):
+def activate_user(current_user: Annotated[schemas.User, Depends(get_current_active_user)],
+				username: str, new_user: schemas.UserActivate, db: Session = Depends(get_db)):
 	db_user = db.query(models.User).filter(models.User.username == username).first()
 	if db_user is None:
 		raise HTTPException(status_code=404, detail="User not found")
@@ -250,7 +263,8 @@ def activate_user(username: str, new_user: schemas.UserActivate, db: Session = D
 	return db_user	
 	
 @app.delete("/delete_user/{username}", status_code=status.HTTP_201_CREATED) 
-def delete_user(username: str, db: Session = Depends(get_db)):
+def delete_user(current_user: Annotated[schemas.User, Depends(get_current_active_user)],
+				username: str, db: Session = Depends(get_db)):
 	db_user = db.query(models.User).filter(models.User.username == username).first()
 	if db_user is None:
 		raise HTTPException(status_code=404, detail="User not found")	
@@ -258,15 +272,9 @@ def delete_user(username: str, db: Session = Depends(get_db)):
 	db.commit()
 	return {"Deleted": "Delete User Successfuly"}
 	
-@app.get("/read_user_by_username/{username}", status_code=status.HTTP_201_CREATED) 
-def delete_user(username: str, db: Session = Depends(get_db)):
-	db_user = db.query(models.User).filter(models.User.username == username).first()
-	if db_user is None:
-		raise HTTPException(status_code=404, detail="User not found")	
-	return db_user
-	
 @app.put("/reset_password/{username}", status_code=status.HTTP_201_CREATED) 
-def reset_password(username: str, password: schemas.UserPassword, db: Session = Depends(get_db)):
+def reset_password(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+				username: str, password: schemas.UserPassword, db: Session = Depends(get_db)):
 	db_user = db.query(models.User).filter(models.User.username == username).first()
 	if db_user is None:
 		raise HTTPException(status_code=404, detail="User not found")	
@@ -280,7 +288,8 @@ def reset_password(username: str, password: schemas.UserPassword, db: Session = 
 #######################
 
 @app.post("/create_project/", status_code=status.HTTP_201_CREATED)  #, response_model=schemas.Project
-def create_project(project: schemas.Project, db: Session = Depends(get_db)):	
+def create_project(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					project: schemas.Project, db: Session = Depends(get_db)):	
 	try:
 		db_project = db.query(models.Project).filter(models.Project.project_name == project.project_name).first()
 		if db_project is None:
@@ -291,6 +300,7 @@ def create_project(project: schemas.Project, db: Session = Depends(get_db)):
 				mail_manager=project.mail_manager,
 				inidate_proj=func.now(),
 				upddate_proj = func.now(),
+				enddate_proj = project.enddate_proj,
 				latitud=0,
 				longitud=0,
 				is_active=True, 
@@ -305,12 +315,20 @@ def create_project(project: schemas.Project, db: Session = Depends(get_db)):
 		raise HTTPException(status_code=405, detail="Unexpected error when creating project")
 
 @app.get("/read_projects/", status_code=status.HTTP_201_CREATED)
-def read_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
+def read_projects(current_user: Annotated[schemas.User, Security(get_current_active_user, scopes=["admin"])],
+				skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
 	projects = db.query(models.Project).offset(skip).limit(limit).all()    
 	return projects
 	
+@app.get("/read_projects_by_user_email/{email}", status_code=status.HTTP_201_CREATED)
+def read_projects_by_user_email(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+								email: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
+	projects = db.query(models.Project).filter(models.Project.mail_manager == email).offset(skip).limit(limit).all()    
+	return projects
+	
 @app.put("/update_project/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def update_project(project_id: str, project: schemas.Project, db: Session = Depends(get_db)):
+def update_project(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					project_id: str, project: schemas.Project, db: Session = Depends(get_db)):
 	db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
 	if db_project is None:
 		raise HTTPException(status_code=404, detail="Project not found")
@@ -324,7 +342,8 @@ def update_project(project_id: str, project: schemas.Project, db: Session = Depe
 	return db_project
 	
 @app.put("/update_project_date/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def update_project_date(project_id: str, project: schemas.ProjectUpdDate, db: Session = Depends(get_db)):
+def update_project_date(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+						project_id: str, project: schemas.ProjectUpdDate, db: Session = Depends(get_db)):
 	db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
 	if db_project is None:
 		raise HTTPException(status_code=404, detail="Project not found")
@@ -335,7 +354,8 @@ def update_project_date(project_id: str, project: schemas.ProjectUpdDate, db: Se
 	return db_project
 	
 @app.put("/activate_project/{id}", status_code=status.HTTP_201_CREATED) 
-def activate_project(id: str, project: schemas.LaborActive, db: Session = Depends(get_db)):
+def activate_project(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					id: str, project: schemas.LaborActive, db: Session = Depends(get_db)):
 	db_project = db.query(models.Project).filter(models.Project.id == id).first()
 	if db_project is None:
 		raise HTTPException(status_code=404, detail="Project not found")
@@ -345,7 +365,8 @@ def activate_project(id: str, project: schemas.LaborActive, db: Session = Depend
 	return {"Response": "Project successfully changed its status"}	
 
 @app.delete("/delete_project/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def delete_project(project_id: str, db: Session = Depends(get_db)):
+def delete_project(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					project_id: str, db: Session = Depends(get_db)):
 	db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
 	if db_project is None:
 		raise HTTPException(status_code=404, detail="Project not found")	
@@ -358,7 +379,8 @@ def delete_project(project_id: str, db: Session = Depends(get_db)):
 #####################
 
 @app.post("/create_labor/", status_code=status.HTTP_201_CREATED)  #, response_model=schemas.Project
-def create_labor(labor: schemas.Labor, db: Session = Depends(get_db)):		
+def create_labor(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					labor: schemas.Labor, db: Session = Depends(get_db)):		
 	try:	
 		labors_in_db = db.query(
 							models.Project.project_name,
@@ -375,6 +397,7 @@ def create_labor(labor: schemas.Labor, db: Session = Depends(get_db)):
 				desc_labor=labor.desc_labor,
 				inidate_labor=func.now(),
 				upddate_labor=func.now(),
+				enddate_labor=labor.enddate_labor,
 				project_id=labor.project_id, 
 			)			
 			db_parent_project = db.query(models.Project).filter(models.Project.id == labor.project_id).first()
@@ -391,7 +414,8 @@ def create_labor(labor: schemas.Labor, db: Session = Depends(get_db)):
 		raise HTTPException(status_code=405, detail="Unexpected error when creating labor")
 		
 @app.get("/read_labors/", status_code=status.HTTP_201_CREATED)  
-def read_labors(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_labors(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+				skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	db_labors = db.query(
 					models.Labor.id,
 					models.Labor.type,
@@ -406,7 +430,8 @@ def read_labors(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	return db_labors
 	
 @app.get("/read_labors_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
-def read_labors_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_labors_by_project_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+							project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	db_labors = db.query(
 					models.Labor.id,
 					models.Labor.type,
@@ -422,18 +447,21 @@ def read_labors_by_project_id(project_id: str, skip: int = 0, limit: int = 100, 
 	return db_labors
 	
 @app.put("/update_labor/{labor_id}", status_code=status.HTTP_201_CREATED) 
-def update_labor(labor_id: str, upd_labor: schemas.LaborUPD, db: Session = Depends(get_db)):
+def update_labor(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					labor_id: str, upd_labor: schemas.LaborUPD, db: Session = Depends(get_db)):
 	db_labor = db.query(models.Labor).filter(models.Labor.id == labor_id).first()
 	if db_labor is None:
 		raise HTTPException(status_code=404, detail="Labor category not found")
 	db_labor.desc_labor=upd_labor.desc_labor
+	db_labor.type=upd_labor.type
 	db_labor.upddate_labor=func.now()
 	db.commit()
 	db.refresh(db_labor)	
 	return db_labor
 
 @app.put("/update_labor_date/{labor_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def update_labor_date(labor_id: str, labor: schemas.LaborUpdDate, db: Session = Depends(get_db)):
+def update_labor_date(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					labor_id: str, labor: schemas.LaborUpdDate, db: Session = Depends(get_db)):
 	db_labor = db.query(models.Labor).filter(models.Labor.id == labor_id).first()
 	if db_labor is None:
 		raise HTTPException(status_code=404, detail="Labor not found")
@@ -444,7 +472,8 @@ def update_labor_date(labor_id: str, labor: schemas.LaborUpdDate, db: Session = 
 	return db_labor
 	
 @app.put("/activate_labor/{id}", status_code=status.HTTP_201_CREATED) 
-def activate_labor(id: str, labor: schemas.LaborActive, db: Session = Depends(get_db)):
+def activate_labor(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					id: str, labor: schemas.LaborActive, db: Session = Depends(get_db)):
 	db_labor = db.query(models.Labor).filter(models.Labor.id == id).first()
 	if db_labor is None:
 		raise HTTPException(status_code=404, detail="Labor not found")
@@ -452,9 +481,10 @@ def activate_labor(id: str, labor: schemas.LaborActive, db: Session = Depends(ge
 	db.commit()
 	db.refresh(db_labor)	
 	return {"Response": "Labor successfully changed its status"}	
-
+	
 @app.delete("/delete_labor/{labor_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def delete_labor(labor_id: str, db: Session = Depends(get_db)):
+def delete_labor(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					labor_id: str, db: Session = Depends(get_db)):
 	db_labor = db.query(models.Labor).filter(models.Labor.id == labor_id).first()
 	if db_labor is None:
 		raise HTTPException(status_code=404, detail="Labor not found")	
@@ -467,7 +497,8 @@ def delete_labor(labor_id: str, db: Session = Depends(get_db)):
 #########################
 
 @app.post("/create_task/", status_code=status.HTTP_201_CREATED) 
-def create_task(task: schemas.Task, db: Session = Depends(get_db)):		
+def create_task(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+				task: schemas.Task, db: Session = Depends(get_db)):		
 	try:	
 		tasks_in_db = db.query(
 							models.Labor.type,
@@ -487,6 +518,7 @@ def create_task(task: schemas.Task, db: Session = Depends(get_db)):
 				hour_men=(task.hour * task.mechanicals),
 				inidate_task=func.now(),
 				upddate_task=func.now(),
+				enddate_task=task.enddate_task,
 				is_active=True,
 				labor_task_id=task.labor_task_id,
 			)			
@@ -505,7 +537,8 @@ def create_task(task: schemas.Task, db: Session = Depends(get_db)):
 
 	
 @app.get("/read_tasks/", status_code=status.HTTP_201_CREATED)  
-def read_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
+def read_tasks(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+				skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
 	db_tasks = db.query(
 					models.Task.id,
 					models.Task.description,
@@ -525,7 +558,8 @@ def read_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	return db_tasks
 	
 @app.get("/read_tasks_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def read_tasks_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_tasks_by_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+						labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	db_tasks = db.query(
 					models.Task.id,
 					models.Task.description,
@@ -545,7 +579,8 @@ def read_tasks_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: S
 	return db_tasks	
 	
 @app.put("/activate_task/{id}", status_code=status.HTTP_201_CREATED) 
-def activate_task(id: str, task: schemas.TaskActive, db: Session = Depends(get_db)):
+def activate_task(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+				id: str, task: schemas.TaskActive, db: Session = Depends(get_db)):
 	db_task = db.query(models.Task).filter(models.Task.id == id).first()
 	if db_task is None:
 		raise HTTPException(status_code=404, detail="Task not found")
@@ -555,7 +590,8 @@ def activate_task(id: str, task: schemas.TaskActive, db: Session = Depends(get_d
 	return {"Response": "Task successfully changed its status"}	
 		
 @app.put("/update_task/{id}", status_code=status.HTTP_201_CREATED) 
-def update_task(id: str, upd: schemas.TaskUPD, db: Session = Depends(get_db)):
+def update_task(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+				id: str, upd: schemas.TaskUPD, db: Session = Depends(get_db)):
 	db_task = db.query(models.Task).filter(models.Task.id == id).first()
 	if db_task is None:
 		raise HTTPException(status_code=404, detail="Task not found")
@@ -568,7 +604,8 @@ def update_task(id: str, upd: schemas.TaskUPD, db: Session = Depends(get_db)):
 	return db_task
 
 @app.put("/update_labor_date/{task_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
-def update_labor_date(task_id: str, task: schemas.TaskUpdDate, db: Session = Depends(get_db)):
+def update_labor_date(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+						task_id: str, task: schemas.TaskUpdDate, db: Session = Depends(get_db)):
 	db_task = db.query(models.Task).filter(models.Task.id == labor_id).first()
 	if db_task is None:
 		raise HTTPException(status_code=404, detail="Task not found")
@@ -579,7 +616,8 @@ def update_labor_date(task_id: str, task: schemas.TaskUpdDate, db: Session = Dep
 	return db_task	
 
 @app.delete("/delete_task/{id}", status_code=status.HTTP_201_CREATED) 
-def delete_task(id: str, db: Session = Depends(get_db)):
+def delete_task(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+				id: str, db: Session = Depends(get_db)):
 	db_task = db.query(models.Task).filter(models.Task.id == id).first()
 	if db_task is None:
 		raise HTTPException(status_code=404, detail="Task not found")	
@@ -591,7 +629,8 @@ def delete_task(id: str, db: Session = Depends(get_db)):
 #------EQUIPMENT--------- 
 #########################
 @app.post("/create_equipment/", status_code=status.HTTP_201_CREATED) 
-def create_equipment(equipment: schemas.Equipment, db: Session = Depends(get_db)):		
+def create_equipment(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					equipment: schemas.Equipment, db: Session = Depends(get_db)):		
 	try:	
 		equipments_in_db = db.query(
 							models.Equipment.id,
@@ -624,7 +663,8 @@ def create_equipment(equipment: schemas.Equipment, db: Session = Depends(get_db)
 		raise HTTPException(status_code=405, detail="Unexpected error when creating equipment")		
 
 @app.get("/read_equipments/", status_code=status.HTTP_201_CREATED)  
-def read_equipments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
+def read_equipments(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
 	db_equipments = db.query(
 					models.Equipment.id,
 					models.Equipment.equipment_name,
@@ -639,7 +679,8 @@ def read_equipments(skip: int = 0, limit: int = 100, db: Session = Depends(get_d
 	return db_equipments
 	
 @app.get("/read_equipments_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def read_equipments_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_equipments_by_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+							labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	db_equipments = db.query(
 					models.Equipment.id,
 					models.Equipment.equipment_name,
@@ -654,7 +695,8 @@ def read_equipments_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, 
 	return db_equipments
 	
 @app.put("/update_equipment/{id}", status_code=status.HTTP_201_CREATED) 
-def update_equipment(id: str, upd: schemas.EquipmentUPD, db: Session = Depends(get_db)):
+def update_equipment(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					id: str, upd: schemas.EquipmentUPD, db: Session = Depends(get_db)):
 	db_equipment = db.query(models.Equipment).filter(models.Equipment.id == id).first()
 	if db_equipment is None:
 		raise HTTPException(status_code=404, detail="Task not found")
@@ -666,7 +708,8 @@ def update_equipment(id: str, upd: schemas.EquipmentUPD, db: Session = Depends(g
 	return db_equipment	
 
 @app.delete("/delete_equipment/{id}", status_code=status.HTTP_201_CREATED) 
-def delete_equipment(id: str, db: Session = Depends(get_db)):
+def delete_equipment(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					id: str, db: Session = Depends(get_db)):
 	db_equipment = db.query(models.Equipment).filter(models.Equipment.id == id).first()
 	if db_equipment is None:
 		raise HTTPException(status_code=404, detail="Task not found")	
@@ -679,7 +722,8 @@ def delete_equipment(id: str, db: Session = Depends(get_db)):
 #########################	
 
 @app.post("/create_material/", status_code=status.HTTP_201_CREATED) 
-def create_material(material: schemas.Material, db: Session = Depends(get_db)):		
+def create_material(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					material: schemas.Material, db: Session = Depends(get_db)):		
 	try:	
 		materials_in_db = db.query(
 							models.Material.id,
@@ -713,7 +757,8 @@ def create_material(material: schemas.Material, db: Session = Depends(get_db)):
 		raise HTTPException(status_code=405, detail="Unexpected error when creating material")		
 
 @app.get("/read_materials/", status_code=status.HTTP_201_CREATED)  
-def read_materials(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
+def read_materials(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):    
 	db_materials = db.query(
 					models.Material.id,
 					models.Material.material_name,
@@ -729,7 +774,8 @@ def read_materials(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
 	return db_materials
 	
 @app.get("/read_materials_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def read_materials_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_materials_by_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+						labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	db_materials = db.query(
 					models.Material.id,
 					models.Material.material_name,
@@ -745,7 +791,8 @@ def read_materials_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, d
 	return db_materials
 	
 @app.put("/update_material/{id}", status_code=status.HTTP_201_CREATED) 
-def update_material(id: str, upd: schemas.MaterialUPD, db: Session = Depends(get_db)):
+def update_material(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					id: str, upd: schemas.MaterialUPD, db: Session = Depends(get_db)):
 	db_material = db.query(models.Material).filter(models.Material.id == id).first()
 	if db_material is None:
 		raise HTTPException(status_code=404, detail="Material not found")
@@ -757,7 +804,8 @@ def update_material(id: str, upd: schemas.MaterialUPD, db: Session = Depends(get
 	return db_material
 
 @app.delete("/delete_material/{id}", status_code=status.HTTP_201_CREATED) 
-def delete_material(id: str, db: Session = Depends(get_db)):
+def delete_material(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					id: str, db: Session = Depends(get_db)):
 	db_material = db.query(models.Material).filter(models.Material.id == id).first()
 	if db_material is None:
 		raise HTTPException(status_code=404, detail="Material not found")	
@@ -772,7 +820,8 @@ def delete_material(id: str, db: Session = Depends(get_db)):
 #------------Example queries TASK here----------
 
 @app.get("/summary_amount_tasks_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def summary_amount_tasks_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_amount_tasks_by_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+							labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	db_project_summary = db.query(
 					models.Labor.type,
 					func.sum(models.Task.hour_men).label('hour_men'),
@@ -785,7 +834,8 @@ def summary_amount_tasks_by_labor_id(labor_id: str, skip: int = 0, limit: int = 
 	return db_project_summary
 
 @app.get("/summary_tasks_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
-def summary_tasks_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_tasks_by_project_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+							project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Task.labor_task_id.label('labor_id'),		
@@ -823,7 +873,8 @@ def summary_tasks_by_project_id(project_id: str, skip: int = 0, limit: int = 100
 	return query
 
 @app.get("/summary_all_tasks_by_projects/", status_code=status.HTTP_201_CREATED)  
-def summary_all_tasks_by_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_all_tasks_by_projects(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+							skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Task.labor_task_id.label('labor_id'),		
@@ -861,7 +912,8 @@ def summary_all_tasks_by_projects(skip: int = 0, limit: int = 100, db: Session =
 	return query
 	
 @app.get("/summary_all_tasks/", status_code=status.HTTP_201_CREATED)  
-def summary_all_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_all_tasks(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Task.labor_task_id.label('labor_id'),		
@@ -893,7 +945,8 @@ def summary_all_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get
 #------------Example queries EQUIPMENT here----------
 
 @app.get("/summary_amount_equipments_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def summary_amount_equipments_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_amount_equipments_by_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+						labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	db_project_summary = db.query(
 					models.Labor.type,
 					func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
@@ -905,7 +958,8 @@ def summary_amount_equipments_by_labor_id(labor_id: str, skip: int = 0, limit: i
 	return db_project_summary
 
 @app.get("/summary_equipments_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
-def summary_equipments_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_equipments_by_project_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+							project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Equipment.labor_equipment_id.label('labor_id'),		
@@ -939,7 +993,8 @@ def summary_equipments_by_project_id(project_id: str, skip: int = 0, limit: int 
 	return query
 
 @app.get("/summary_all_equipments_by_projects/", status_code=status.HTTP_201_CREATED)  
-def summary_all_equipments_by_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_all_equipments_by_projects(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Equipment.labor_equipment_id.label('labor_id'),		
@@ -973,7 +1028,8 @@ def summary_all_equipments_by_projects(skip: int = 0, limit: int = 100, db: Sess
 	return query
 	
 @app.get("/summary_all_equipments/", status_code=status.HTTP_201_CREATED)  
-def summary_all_equipments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_all_equipments(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Equipment.labor_equipment_id.label('labor_id'),		
@@ -1003,7 +1059,8 @@ def summary_all_equipments(skip: int = 0, limit: int = 100, db: Session = Depend
 #------------Example queries MATERIAL here----------
 
 @app.get("/summary_amount_materials_by_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def summary_amount_materials_by_labor_id(labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_amount_materials_by_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	db_project_summary = db.query(
 					models.Labor.type,
 					models.Material.material_type,
@@ -1017,7 +1074,8 @@ def summary_amount_materials_by_labor_id(labor_id: str, skip: int = 0, limit: in
 	return db_project_summary
 
 @app.get("/summary_materials_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
-def summary_materials_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_materials_by_project_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Material.labor_material_id.label('labor_id'),
@@ -1053,7 +1111,8 @@ def summary_materials_by_project_id(project_id: str, skip: int = 0, limit: int =
 	return query
 
 @app.get("/summary_all_materials_by_projects/", status_code=status.HTTP_201_CREATED)  
-def summary_all_materials_by_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_all_materials_by_projects(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Material.labor_material_id.label('labor_id'),		
@@ -1088,7 +1147,8 @@ def summary_all_materials_by_projects(skip: int = 0, limit: int = 100, db: Sessi
 	return query
 	
 @app.get("/summary_all_materials/", status_code=status.HTTP_201_CREATED)  
-def summary_all_materials(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_all_materials(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Material.labor_material_id.label('labor_id'),		
@@ -1116,7 +1176,8 @@ def summary_all_materials(skip: int = 0, limit: int = 100, db: Session = Depends
 #--------------------ACTIVE TASK- BY PROJECTS--------------
 
 @app.get("/summary_task_active_status_by_project/", status_code=status.HTTP_201_CREATED)  
-def summary_task_active_status_by_project(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_task_active_status_by_project(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query_active = db.query(
 		models.Task.labor_task_id.label('labor_id'),		
@@ -1161,7 +1222,8 @@ def summary_task_active_status_by_project(skip: int = 0, limit: int = 100, db: S
 	return query
 	
 @app.get("/summary_task_active_status_by_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
-def summary_task_active_status_by_project_id(project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def summary_task_active_status_by_project_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+						project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query_active = db.query(
 		models.Task.labor_task_id.label('labor_id'),		
@@ -1210,7 +1272,8 @@ def summary_task_active_status_by_project_id(project_id: str, skip: int = 0, lim
 #--------------TOP PROJECTS------------	
 
 @app.get("/project_materials_top/", status_code=status.HTTP_201_CREATED)  
-def project_materials_top(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def project_materials_top(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Material.labor_material_id.label('labor_id'),		
@@ -1242,10 +1305,11 @@ def project_materials_top(skip: int = 0, limit: int = 100, db: Session = Depends
 	return query
 	
 @app.get("/project_tasks_top/", status_code=status.HTTP_201_CREATED)  
-def project_tasks_top(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def project_tasks_top(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+				skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
-		models.Task.labor_material_id.label('labor_id'),		
+		models.Task.labor_task_id.label('labor_id'),		
 		func.count(models.Task.id).label('task_number'),
 		func.sum(models.Task.task_price).label('task_amount'),
 	).select_from(
@@ -1274,7 +1338,8 @@ def project_tasks_top(skip: int = 0, limit: int = 100, db: Session = Depends(get
 	return query
 	
 @app.get("/project_equipments_top/", status_code=status.HTTP_201_CREATED)  
-def project_equipments_top(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def project_equipments_top(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+						skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
 		models.Equipment.labor_equipment_id.label('labor_id'),		
@@ -1305,8 +1370,157 @@ def project_equipments_top(skip: int = 0, limit: int = 100, db: Session = Depend
 	
 	return query
 	
+@app.get("/summary_all_project_items_task/", status_code=status.HTTP_201_CREATED)  
+def summary_all_project_items_task(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+						skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query_task = db.query(
+		models.Task.labor_task_id.label('labor_id'),
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('task_hour_men'),
+		func.sum(models.Task.task_price).label('task_amount'),
+	).select_from(
+		models.Task
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_query_labor = db.query(
+		models.Labor.id,
+		models.Labor.type,
+		func.sum(sub_query_task.c.task_number).label('task_number'),
+		func.sum(sub_query_task.c.task_hour_men).label('task_hour_men'),
+		func.sum(sub_query_task.c.task_amount).label('task_amount'),
+	).select_from(
+		models.Labor
+	).join(
+		sub_query_task, sub_query_task.c.labor_id == models.Labor.id
+	).group_by(
+		models.Labor.type	
+	).subquery()
+	
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		func.count(models.Labor.type).label('labor_number'),
+		sub_query_labor
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query_labor, sub_query_labor.c.id == models.Labor.id
+	).group_by(
+		models.Project.id	
+	).all()	
+	
+	return query
+	
+@app.get("/summary_all_project_items_equipments/", status_code=status.HTTP_201_CREATED)  
+def summary_all_project_items_equipments(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	#Equipments
+	sub_query_equipment = db.query(
+		models.Equipment.labor_equipment_id.label('labor_equipment_id'),
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Equipment
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	sub_labor_equipment = db.query(
+		models.Labor.id,
+		models.Labor.type,
+		func.sum(sub_query_equipment.c.equipment_number).label('equipment_number'),
+		func.sum(sub_query_equipment.c.equipment_amount).label('equipment_amount'),		
+	).select_from(
+		models.Labor
+	).join(
+		sub_query_equipment, sub_query_equipment.c.labor_equipment_id == models.Labor.id
+	).group_by(
+		models.Labor.type	
+	).subquery()
+	
+	#Final
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		func.count(models.Labor.type).label('labor_number'),
+		sub_labor_equipment,
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_labor_equipment, sub_labor_equipment.c.id == models.Labor.id
+	).group_by(
+		models.Project.id	
+	).all()	
+	
+	return query
+	
+@app.get("/summary_all_project_items_materials/", status_code=status.HTTP_201_CREATED)  
+def summary_all_project_items_materials(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	#Material
+	sub_query_material = db.query(
+		models.Material.labor_material_id.label('labor_material_id'),		
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).select_from(
+		models.Material
+	).group_by(
+		models.Material.labor_material_id
+	).subquery()
+	
+	sub_labor_material = db.query(
+		models.Labor.id,
+		models.Labor.type,
+		func.sum(sub_query_material.c.material_number).label('material_number'),
+		func.sum(sub_query_material.c.material_amount).label('material_amount'),		
+	).select_from(
+		models.Labor
+	).join(
+		sub_query_material, sub_query_material.c.labor_material_id == models.Labor.id
+	).group_by(
+		models.Labor.type	
+	).subquery()
+	
+	#Final
+	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		func.count(models.Labor.type).label('labor_number'),
+		sub_labor_material,
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_labor_material, sub_labor_material.c.id == models.Labor.id
+	).group_by(
+		models.Project.id	
+	).all()	
+	
+	return query
+	
+@app.get("/number_projects_by_user/{email}", status_code=status.HTTP_201_CREATED)  
+def number_projects_by_user(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					email: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	query = db.query(
+		func.count(models.Project.id).label('project_number'),
+	).select_from(
+		models.Project
+	).filter(
+		models.Project.mail_manager == email
+	).first()	
+	
+	return query
 
-#----------PDR CREATION-------------------	
+#----------PDF CREATION-------------------	
 def formar_query(query):
 
 	data = []
@@ -1411,7 +1625,8 @@ def report_equipments_by_labor_id(labor_id: str, db: Session):
 	return pdf.output()
 	
 @app.get("/pdf_equipment_report_for_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def pdf_equipment_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):		
+def pdf_equipment_report_for_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+						labor_id: str, db: Session = Depends(get_db)):		
 	headers = {'Content-Disposition': 'attachment; filename="equipments.pdf"'} 
 	output = report_equipments_by_labor_id(labor_id, db)	
 	return Response(bytes(output), headers=headers, media_type='application/pdf')
@@ -1496,7 +1711,8 @@ def report_tasks_by_labor_id(labor_id: str, db: Session):
 	return pdf.output()
 	
 @app.get("/pdf_task_report_for_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def pdf_task_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):		
+def pdf_task_report_for_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					labor_id: str, db: Session = Depends(get_db)):		
 	headers = {'Content-Disposition': 'attachment; filename="tasks.pdf"'} 
 	output = report_tasks_by_labor_id(labor_id, db)	
 	return Response(bytes(output), headers=headers, media_type='application/pdf')
@@ -1579,7 +1795,8 @@ def report_materials_by_labor_id(labor_id: str, db: Session):
 	return pdf.output()
 	
 @app.get("/pdf_materials_report_for_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def pdf_materials_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):		
+def pdf_materials_report_for_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					labor_id: str, db: Session = Depends(get_db)):		
 	headers = {'Content-Disposition': 'attachment; filename="materials.pdf"'} 
 	output = report_materials_by_labor_id(labor_id, db)	
 	return Response(bytes(output), headers=headers, media_type='application/pdf')
@@ -1771,7 +1988,8 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	return pdf.output()
 	
 @app.get("/pdf_report_for_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
-def pdf_report_for_labor_id(labor_id: str, db: Session = Depends(get_db)):		
+def pdf_report_for_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					labor_id: str, db: Session = Depends(get_db)):		
 	headers = {'Content-Disposition': 'attachment; filename="output.pdf"'} #inline / attachment
 	output = report_by_labor_id(labor_id, db)	
 	return Response(bytes(output), headers=headers, media_type='application/pdf')

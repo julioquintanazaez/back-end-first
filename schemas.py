@@ -4,7 +4,7 @@ from pydantic import BaseModel, EmailStr
 
 class UserUPD(BaseModel):	
 	username: str
-	email: Union[str, None] = None
+	email: Union[EmailStr, None] = None
 	full_name: Union[str, None] = None
 	
 	class Config:
@@ -22,9 +22,10 @@ class UserActivate(BaseModel):
 	
 class User(BaseModel):	
 	username: str
-	email: Union[str, None] = None
+	email: EmailStr
 	full_name: Union[str, None] = None
-	role: Union[str, None] = None
+	#role: Union[str, None] = None
+	role: List[str] = []	
 	disable: Union[bool, None] = None
 	
 	class Config:
@@ -66,9 +67,10 @@ class ProjectUpdDate(BaseModel):
 		
 class Project(BaseModel):
 	project_name : str
-	desc_proj : str 
+	desc_proj : Union[str, None] = None
 	manager : str
 	mail_manager : EmailStr 
+	enddate_proj : date
 	
 	class Config:
 		orm_mode = True
@@ -79,7 +81,6 @@ class ProjectInDB(Project):
 	id : str 
 	inidate_proj : Union[date, None] = None
 	upddate_proj : Union[date, None] = None
-	enddate_proj : Union[date, None] = None
 	latitud : Union[float, None] = None
 	longitud : Union[float, None] = None
 	is_active : Union[bool, None] = None 
@@ -87,15 +88,16 @@ class ProjectInDB(Project):
 #-------LABOR-------------
 #-------------------------	
 class LaborActive(BaseModel):
-	is_active: Union[bool, None] = None
+	is_active: bool
 			
 	class Config:
 		orm_mode = True
 		allow_population_by_field_name = True
 		arbitrary_types_allowed = True	
-
+		
 class LaborUPD(BaseModel):
 	desc_labor : str
+	type: str
 	
 	class Config:
 		orm_mode = True
@@ -114,6 +116,7 @@ class Labor(BaseModel):
 	type : str	
 	desc_labor : str
 	project_id: str
+	enddate_labor : date
 	
 	class Config:
 		orm_mode = True
@@ -123,9 +126,9 @@ class Labor(BaseModel):
 class LaborInDB(Labor):
 	id: str		
 	inidate_labor : date
-	upddate_labor : date
-	enddate_labor : date
+	upddate_labor : date	
 	is_active : Union[bool, None] = None 
+	is_open : Union[bool, None] = None 
 
 #-------------------------
 #-------TASK-------------
@@ -160,6 +163,7 @@ class Task(BaseModel):
 	description : str
 	mechanicals : int
 	hour : int
+	enddate_task : date
 	task_price : float
 	labor_task_id : str 
 			
@@ -171,9 +175,8 @@ class Task(BaseModel):
 class TaskInDB(Task):
 	id: str
 	hour_men : int
-	inidate_task : date
-	upddate_task : date
-	enddate_task : date
+	inidate_task : Union[date, None] = None
+	upddate_task : Union[date, None] = None
 	is_active : Union[bool, None] = None	
 	
 #-------------------------
