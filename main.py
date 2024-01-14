@@ -1823,7 +1823,8 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	#Setup page style
 	pdf.alias_nb_pages()
 	#Setup configuration
-	#pdf.set_font('helvetica', 12)		
+	#pdf.set_font('helvetica', 12)
+	pdf.set_font('Arial', '', 10)
 	#HEADER
 	#Add image
 	pdf.image('./logo.png', x=10, y=8, w=10)
@@ -1885,11 +1886,13 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	#HEADER
 	#Add image
 	pdf.image('./logo.png', x=10, y=8, w=10)
+	pdf.set_font('Arial', '', 10)
 	# Top margin: move 85 down
 	pdf.ln(15) 			 
-	pdf.cell(0, 5, f'Project name: Burlington', 'L', ln=1)
-	pdf.cell(0, 5, f'End date: 10/01/2024', 'L', ln=1)
-	pdf.cell(0, 5, f'Manager: Julio Cesar Quintana', 'L', ln=1)
+	pdf.cell(0, 5, f'Project name: {properties[0]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Work description: {properties[1]}', 'L', ln=1)
+	pdf.cell(0, 5, f'End date: {properties[2]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Manager: {properties[3]}', 'L', ln=1)
 	pdf.ln(10) 
 	pdf.cell(0, 5, f'Summary report', 'C', ln=1)	
 	# Line break
@@ -1938,11 +1941,13 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	#HEADER
 	#Add image
 	pdf.image('./logo.png', x=10, y=8, w=10)
+	pdf.set_font('Arial', '', 10)
 	# Top margin: move 85 down
 	pdf.ln(15) 			 
-	pdf.cell(0, 5, f'Project name: Burlington', 'L', ln=1)
-	pdf.cell(0, 5, f'End date: 10/01/2024', 'L', ln=1)
-	pdf.cell(0, 5, f'Manager: Julio Cesar Quintana', 'L', ln=1)
+	pdf.cell(0, 5, f'Project name: {properties[0]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Work description: {properties[1]}', 'L', ln=1)
+	pdf.cell(0, 5, f'End date: {properties[2]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Manager: {properties[3]}', 'L', ln=1)
 	pdf.ln(10) 
 	pdf.cell(0, 5, f'Summary report', 'C', ln=1)	
 	# Line break
