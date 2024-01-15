@@ -224,7 +224,7 @@ def create_user(user: schemas.UserInDB, db: Session = Depends(get_db)): #Por el 
 		full_name=user.full_name,
 		email=user.email,
 		role=user.role,
-		disable=user.disable,
+		disable=False,
 		hashed_password=pwd_context.hash(user.hashed_password)
 	)
 	db.add(db_user)

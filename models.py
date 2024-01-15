@@ -30,7 +30,7 @@ class User(Base):
 	email = Column(String(30), nullable=False, index=True) 
 	#role = Column(String(15), nullable=False, index=True)#List[] #Scopes
 	role = Column(JSONEncodeDict)
-	disable = Column(Boolean, nullable=True, default=True)	
+	disable = Column(Boolean, nullable=True, default=False)	
 	hashed_password = Column(String(100), nullable=True, default=False)	
 
 class Project(Base):  
