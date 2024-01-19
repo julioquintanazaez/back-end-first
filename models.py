@@ -43,7 +43,7 @@ class Project(Base):
 	upddate_proj = Column(DateTime, onupdate=func.now()) 
 	enddate_proj = Column(DateTime)
 	manager = Column(String(50), nullable=False, index=True)
-	mail_manager = Column(String(50), nullable=True)
+	mail_manager = Column(String(50), unique=True, nullable=True)
 	latitud = Column(Float, nullable=True, default=0.0) 	
 	longitud = Column(Float, nullable=True, default=0.0) 
 	is_active = Column(Boolean, nullable=True, default=True)
