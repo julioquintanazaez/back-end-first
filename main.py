@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.sql import func
+from sqlalchemy.sql.expression import case
 from sqlalchemy import desc, asc
 from uuid import uuid4
 from pathlib import Path
@@ -17,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 from typing_extensions import Annotated
 import models
 import schemas
-from database import SessionLocal, engine
+from database import SessionLocal, engine 
 import init_db
 import config
 from fpdf import FPDF
@@ -215,7 +216,7 @@ async def get_user_status(current_user: Annotated[schemas.User, Depends(get_curr
 #########################
 ###   USERS ADMIN  ######
 #########################
-@app.post("/create_user_admin/", status_code=status.HTTP_201_CREATED)  
+@app.post("/create_user_admin", status_code=status.HTTP_201_CREATED)  
 async def create_user_admin(db: Session = Depends(get_db)): #Por el momento no tiene restricciones
 	if db.query(models.User).filter(models.User.username == config.ADMIN_USER).first():
 		db_user = db.query(models.User).filter(models.User.username == config.ADMIN_USER).first()
@@ -909,7 +910,9 @@ async def summary_all_tasks(current_user: Annotated[schemas.User, Security(get_c
 	).subquery()
 	
 	query = db.query(
+		models.Project.id,
 		models.Project.project_name,
+		func.count(models.Labor.id).label('labors_number'),
 		func.sum(sub_query.c.task_number).label('task_number'),
 		func.sum(sub_query.c.hour_men).label('hour_men'),
 		func.sum(sub_query.c.task_price).label('task_price'),
@@ -923,6 +926,69 @@ async def summary_all_tasks(current_user: Annotated[schemas.User, Security(get_c
 	#	models.Labor.is_active == True 	
 	).group_by(
 		models.Project.id		
+	).all()
+	
+	return query
+	
+@app.get("/summary_all_tasks_labor_type/", status_code=status.HTTP_201_CREATED)  
+async def summary_all_tasks_labor_type(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).select_from(
+		models.Task
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	query = db.query(
+		models.Labor.type,
+		func.count(models.Labor.type).label('type_number'),
+		func.sum(sub_query.c.task_number).label('task_number'),
+		func.sum(sub_query.c.hour_men).label('hour_men'),
+		func.sum(sub_query.c.task_price).label('task_price'),
+	).select_from(
+		models.Labor
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	).group_by(
+		models.Labor.type		
+	).all()
+	
+	return query
+	
+@app.get("/summary_tasks_total/", status_code=status.HTTP_201_CREATED)  
+async def summary_tasks_total(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).select_from(
+		models.Task
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	query = db.query(
+		func.count(models.Labor.id).label('labors_number'),
+		func.sum(sub_query.c.task_number).label('task_number'),
+		func.sum(sub_query.c.hour_men).label('hour_men'),
+		func.sum(sub_query.c.task_price).label('task_price'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
 	).all()
 	
 	return query
@@ -992,6 +1058,9 @@ async def summary_all_equipments(current_user: Annotated[schemas.User, Security(
 	).subquery()
 	
 	query = db.query(
+		models.Project.id,
+		models.Project.project_name,
+		func.count(models.Labor.id).label('labors_number'),
 		func.sum(sub_query.c.equipment_number).label('equipment_number'),
 		func.sum(sub_query.c.equipment_amount).label('equipment_amount'),
 	).select_from(
@@ -1004,6 +1073,36 @@ async def summary_all_equipments(current_user: Annotated[schemas.User, Security(
 	#	models.Labor.is_active == True 	
 	).group_by(
 		models.Project.id		
+	).all()
+	
+	return query
+	
+@app.get("/summary_equipments_total/", status_code=status.HTTP_201_CREATED)  
+async def summary_equipments_total(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_query = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Equipment
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	query = db.query(
+		func.count(models.Labor.id).label('labors_number'),
+		func.sum(sub_query.c.equipment_number).label('equipment_number'),
+		func.sum(sub_query.c.equipment_amount).label('equipment_amount'),
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).join(
+		sub_query, sub_query.c.labor_id == models.Labor.id
+	#).filter(
+	#	models.Labor.is_active == True 	
 	).all()
 	
 	return query
@@ -1062,8 +1161,8 @@ async def summary_materials_by_project_id(current_user: Annotated[schemas.User, 
 	
 	return query
 
-@app.get("/summary_all_materials_by_projects/", status_code=status.HTTP_201_CREATED)  
-async def summary_all_materials_by_projects(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+@app.get("/summary_all_materials/", status_code=status.HTTP_201_CREATED)  
+async def summary_all_materials(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
 					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
@@ -1080,8 +1179,7 @@ async def summary_all_materials_by_projects(current_user: Annotated[schemas.User
 	query = db.query(
 		models.Project.id,
 		models.Project.project_name,
-		#models.Labor.type,
-		#models.Labor.id.label('labor_id'),
+		func.count(models.Labor.id).label('labors_number'),
 		func.sum(sub_query.c.material_number).label('material_number'),
 		func.sum(sub_query.c.material_amount).label('material_amount'),
 	).select_from(
@@ -1098,8 +1196,8 @@ async def summary_all_materials_by_projects(current_user: Annotated[schemas.User
 	
 	return query
 	
-@app.get("/summary_all_materials/", status_code=status.HTTP_201_CREATED)  
-async def summary_all_materials(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+@app.get("/summary_materials_total/", status_code=status.HTTP_201_CREATED)  
+async def summary_materials_total(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
 					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 	
 	sub_query = db.query(
@@ -1113,8 +1211,7 @@ async def summary_all_materials(current_user: Annotated[schemas.User, Security(g
 	).subquery()
 	
 	query = db.query(
-		models.Project.id,
-		models.Project.project_name,
+		func.count(models.Labor.id).label('labors_number'),
 		func.sum(sub_query.c.material_number).label('material_number'),
 		func.sum(sub_query.c.material_amount).label('material_amount'),
 	).select_from(
@@ -1123,12 +1220,250 @@ async def summary_all_materials(current_user: Annotated[schemas.User, Security(g
 		models.Labor, models.Project.id == models.Labor.project_id
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
-	).group_by(
-		models.Project.id #, models.Labor.id	
 	).all()
 	
 	return query
+
+#-------------PER ITEM--------------------------------------
+
+#para todas las labores en general calcula el número de tareas, equipos y materiales
+
+@app.get("/summary_all_item_labor_type/", status_code=status.HTTP_201_CREATED)  
+async def summary_all_item_labor_type(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+
+	sub_task = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
 	
+	sub_equipment = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	sub_material = db.query(
+		models.Material.labor_material_id.label('labor_id'),		
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).group_by(
+		models.Material.labor_material_id
+	).subquery()
+	
+	query = db.query(
+		models.Labor.type,
+		func.count(models.Labor.type).label('type_number'),		
+		func.sum(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).group_by(
+		models.Labor.type		
+	).all()
+	
+	return query
+
+#para una labor calcula el número de tareas, equipos y materiales
+#y agrega el total acumulado
+
+@app.get("/summary_amount_labor_id/{labor_id}", status_code=status.HTTP_201_CREATED)  
+async def summary_amount_labor_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					labor_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_task = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_equipment = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	sub_material = db.query(
+		models.Material.labor_material_id.label('labor_id'),		
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).group_by(
+		models.Material.labor_material_id
+	).subquery()
+	
+	query = db.query(
+		models.Labor.type,
+		models.Labor.id,
+		func.sum(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+		func.sum(
+			case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price) +
+			case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount) +
+			case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)
+		).label('Total_amount')
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Labor.id == labor_id 		
+	).all()
+	
+	return query
+
+#para todas las labores en general calcula el número de tareas, equipos y materiales
+#y agrega el total acumulado
+
+@app.get("/summary_amount_labor_type/", status_code=status.HTTP_201_CREATED)  
+async def summary_amount_labor_type(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_task = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_equipment = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	sub_material = db.query(
+		models.Material.labor_material_id.label('labor_id'),		
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).group_by(
+		models.Material.labor_material_id
+	).subquery()
+	
+	query = db.query(
+		models.Labor.type,
+		func.count(models.Labor.type).label('type_number'),		
+		func.sum(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+		func.sum(
+			case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price) +
+			case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount) +
+			case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)
+		).label('Total_amount')
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).group_by(
+		models.Labor.type		
+	).all()
+	
+	return query
+
+#para un projecto (project_id) calcula el número de tareas, equipos y materiales
+#y agrupa por tipo de labor
+
+@app.get("/stats_amount_by_project/{project_id}", status_code=status.HTTP_201_CREATED)  
+async def stats_amount_by_project(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					project_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_task = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_equipment = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	sub_material = db.query(
+		models.Material.labor_material_id.label('labor_id'),
+		models.Material.material_type.label('material_type'),
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).group_by(
+		models.Material.labor_material_id, models.Material.material_type
+	).subquery()
+	
+	query = db.query(
+		models.Project.project_name,
+		models.Labor.id,
+		models.Labor.type,
+		func.count(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+		func.sum(
+			case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price) +
+			case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount) +
+			case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)
+		).label('Total_amount')
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Project.id == project_id 		
+	).group_by(
+		models.Labor.id		
+	).all()
+	
+	return query
+
 #----------------------------------------------------------
 #   Hasta aqui todo bien
 #--------------------ACTIVE TASK- BY PROJECTS--------------
@@ -1304,26 +1639,11 @@ async def read_summary_project_amount_by_id(#current_user: Annotated[schemas.Use
 		models.Project.id,
 		func.sum(db_task.c.task_amount).label('task_amount'),
 		func.sum(db_equipment.c.equipment_amount).label('equipment_amount'),
-		#func.sum(db_material.c.material_amount).label('material_amount'),
 	).select_from(models.Project
 	).filter(db_task.c.labor_task_id == project_id
 	).filter(db_equipment.c.labor_equipment_id == project_id
 	).all()	#subquery()
 	
-	"""
-	db_summary = db.query(					
-		models.Project.project_name,
-		(models.Project.id).label('project_labor'),
-		func.sum(sub_query.c.number_labors).label('number_labors'),
-		func.sum(sub_query.c.total_amount).label('total_amount'),
-	).join(
-		sub_query, models.Project.id == sub_query.c.project_id
-	).group_by(
-		models.Project.id
-	).filter_by(
-		project_id = project_id
-	).all()	
-	"""
 	return db_labor
 	
 @app.get("/read_projects_summary_amount/", status_code=status.HTTP_201_CREATED)  
