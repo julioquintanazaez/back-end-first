@@ -850,7 +850,7 @@ async def summary_amount_tasks_by_labor_id(current_user: Annotated[schemas.User,
 					func.sum(models.Task.task_price).label('task_price'),
 					func.count(models.Task.id).label('task_number'),
 				).join(models.Task, models.Labor.id == models.Task.labor_task_id
-				#).filter(models.Labor.is_active == True, #models.Task.is_active == True
+				).filter(models.Task.is_active == True
 				).filter_by(labor_task_id = labor_id
 				).all()	
 	return db_project_summary
@@ -866,8 +866,8 @@ async def summary_tasks_by_project_id(current_user: Annotated[schemas.User, Secu
 		func.sum(models.Task.task_price).label('task_amount'),
 	).select_from(
 		models.Task
-	#).filter(
-	#	models.Task.is_active == True 
+	).filter(
+		models.Task.is_active == True 
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -884,8 +884,8 @@ async def summary_tasks_by_project_id(current_user: Annotated[schemas.User, Secu
 		models.Labor, models.Project.id == models.Labor.project_id
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
-	#).filter(
-	#	models.Labor.is_active == True 	
+	).filter(
+		models.Labor.is_active == True 	
 	).filter(
 		models.Project.id == project_id 		
 	).group_by(
@@ -905,6 +905,8 @@ async def summary_all_tasks(current_user: Annotated[schemas.User, Security(get_c
 		func.sum(models.Task.task_price).label('task_price'),
 	).select_from(
 		models.Task
+	).filter(
+		models.Task.is_active == True 
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -922,8 +924,8 @@ async def summary_all_tasks(current_user: Annotated[schemas.User, Security(get_c
 		models.Labor, models.Project.id == models.Labor.project_id
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
-	#).filter(
-	#	models.Labor.is_active == True 	
+	).filter(
+		models.Labor.is_active == True 	
 	).group_by(
 		models.Project.id		
 	).all()
@@ -972,6 +974,8 @@ async def summary_tasks_total(current_user: Annotated[schemas.User, Security(get
 		func.sum(models.Task.task_price).label('task_price'),
 	).select_from(
 		models.Task
+	).filter(
+		models.Task.is_active == True 
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -987,8 +991,8 @@ async def summary_tasks_total(current_user: Annotated[schemas.User, Security(get
 		models.Labor, models.Project.id == models.Labor.project_id
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
-	#).filter(
-	#	models.Labor.is_active == True 	
+	).filter(
+		models.Labor.is_active == True 	
 	).all()
 	
 	return query
@@ -1003,7 +1007,6 @@ async def summary_amount_equipments_by_labor_id(current_user: Annotated[schemas.
 					func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
 					func.count(models.Equipment.id).label('equipment_number'),
 				).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
-				#).filter(models.Labor.is_active == True
 				).filter_by(labor_equipment_id = labor_id
 				).all()	
 	return db_project_summary
@@ -1033,8 +1036,8 @@ async def summary_equipments_by_project_id(current_user: Annotated[schemas.User,
 		models.Labor, models.Project.id == models.Labor.project_id
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
-	#).filter(
-	#	models.Labor.is_active == True 	
+	).filter(
+		models.Labor.is_active == True 	
 	).filter(
 		models.Project.id == project_id 		
 	).group_by(
@@ -1069,8 +1072,8 @@ async def summary_all_equipments(current_user: Annotated[schemas.User, Security(
 		models.Labor, models.Project.id == models.Labor.project_id
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
-	#).filter(
-	#	models.Labor.is_active == True 	
+	).filter(
+		models.Labor.is_active == True 	
 	).group_by(
 		models.Project.id		
 	).all()
@@ -1101,8 +1104,8 @@ async def summary_equipments_total(current_user: Annotated[schemas.User, Securit
 		models.Labor, models.Project.id == models.Labor.project_id
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
-	#).filter(
-	#	models.Labor.is_active == True 	
+	).filter(
+		models.Labor.is_active == True 	
 	).all()
 	
 	return query
@@ -1151,8 +1154,8 @@ async def summary_materials_by_project_id(current_user: Annotated[schemas.User, 
 		models.Labor, models.Project.id == models.Labor.project_id
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
-	#).filter(
-	#	models.Labor.is_active == True 	
+	).filter(
+		models.Labor.is_active == True 	
 	).filter(
 		models.Project.id == project_id 		
 	).group_by(
@@ -1188,8 +1191,8 @@ async def summary_all_materials(current_user: Annotated[schemas.User, Security(g
 		models.Labor, models.Project.id == models.Labor.project_id
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
-	#).filter(
-	#	models.Labor.is_active == True 	
+	).filter(
+		models.Labor.is_active == True 	
 	).group_by(
 		models.Project.id, models.Labor.id	
 	).all()
@@ -1237,6 +1240,8 @@ async def summary_all_item_labor_type(current_user: Annotated[schemas.User, Secu
 		func.count(models.Task.id).label('task_number'),
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
+	).filter(
+		models.Task.is_active == True
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1273,6 +1278,8 @@ async def summary_all_item_labor_type(current_user: Annotated[schemas.User, Secu
 		sub_task, models.Labor.id == sub_task.c.labor_id
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Labor.is_active == True
 	).group_by(
 		models.Labor.type		
 	).all()
@@ -1291,6 +1298,8 @@ async def summary_amount_labor_id(current_user: Annotated[schemas.User, Security
 		func.count(models.Task.id).label('task_number'),
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
+	).filter(
+		models.Task.is_active == True
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1350,6 +1359,8 @@ async def summary_amount_labor_type(current_user: Annotated[schemas.User, Securi
 		func.count(models.Task.id).label('task_number'),
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
+	).filter(
+		models.Task.is_active == True
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1391,6 +1402,8 @@ async def summary_amount_labor_type(current_user: Annotated[schemas.User, Securi
 		sub_task, models.Labor.id == sub_task.c.labor_id
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Labor.is_active == True
 	).group_by(
 		models.Labor.type		
 	).all()
@@ -1409,6 +1422,8 @@ async def stats_amount_by_project(current_user: Annotated[schemas.User, Security
 		func.count(models.Task.id).label('task_number'),
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
+	).filter(
+		models.Task.is_active == True
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1432,7 +1447,8 @@ async def stats_amount_by_project(current_user: Annotated[schemas.User, Security
 	
 	query = db.query(
 		models.Project.project_name,
-		models.Labor.id,
+		models.Project.id,
+		(models.Labor.id).label('labor_id'),
 		models.Labor.type,
 		func.count(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
 		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
@@ -1457,13 +1473,147 @@ async def stats_amount_by_project(current_user: Annotated[schemas.User, Security
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
 	).filter(
+		models.Labor.is_active == True
+	).filter(
 		models.Project.id == project_id 		
+	).order_by(
+		models.Labor.type		
 	).group_by(
 		models.Labor.id		
 	).all()
 	
 	return query
+	
+@app.get("/stats_amount_for_all_project/", status_code=status.HTTP_201_CREATED)  
+async def stats_amount_for_all_project(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_task = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).filter(
+		models.Task.is_active == True
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_equipment = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	sub_material = db.query(
+		models.Material.labor_material_id.label('labor_id'),
+		models.Material.material_type.label('material_type'),
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).group_by(
+		models.Material.labor_material_id, models.Material.material_type
+	).subquery()
+	
+	query = db.query(
+		models.Project.project_name,
+		models.Project.id,
+		(models.Labor.id).label('labor_id'),
+		models.Labor.type,
+		func.count(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+		func.sum(
+			case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price) +
+			case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount) +
+			case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)
+		).label('Total_amount')
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Labor.is_active == True
+	).order_by(
+		models.Project.project_name, models.Labor.type
+	).group_by(
+		models.Project.id, models.Labor.id		
+	).all()
+	
+	return query
 
+@app.get("/total_amount_for_projects/", status_code=status.HTTP_201_CREATED)  
+async def total_amount_for_projects(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+	
+	sub_task = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).filter(
+		models.Task.is_active == True
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_equipment = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	sub_material = db.query(
+		models.Material.labor_material_id.label('labor_id'),
+		models.Material.material_type.label('material_type'),
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).group_by(
+		models.Material.labor_material_id, models.Material.material_type
+	).subquery()
+	
+	db_project_total = db.query(
+		func.count(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+		func.sum(
+			case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price) +
+			case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount) +
+			case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)
+		).label('Total_amount')
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Labor.is_active == True
+	).all()
+	
+	return db_project_total
+	
 #----------------------------------------------------------
 #   Hasta aqui todo bien
 #--------------------ACTIVE TASK- BY PROJECTS--------------
@@ -1508,6 +1658,8 @@ async def summary_task_active_status_by_project(current_user: Annotated[schemas.
 		sub_query_active, sub_query_active.c.labor_id == models.Labor.id
 	).join(
 		sub_query_total, sub_query_total.c.labor_id == models.Labor.id
+	).filter(
+		models.Labor.is_active == True
 	).group_by(
 		models.Project.id, models.Labor.id	
 	).all()
@@ -1555,6 +1707,8 @@ async def summary_task_active_status_by_project_id(current_user: Annotated[schem
 	).join(
 		sub_query_total, sub_query_total.c.labor_id == models.Labor.id
 	).filter(
+		models.Labor.is_active == True
+	).filter(
 		models.Project.id == project_id 		
 	).group_by(
 		models.Project.id, models.Labor.id	
@@ -1580,6 +1734,7 @@ async def read_summary_labor_amount_by_id(#current_user: Annotated[schemas.User,
 				).join(models.Task, models.Labor.id == models.Task.labor_task_id
 				).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
 				).join(models.Material, models.Labor.id == models.Material.labor_material_id
+				).filter(models.Labor.is_active == True
 				).where(models.Labor.id == labor_id
 				).all()	
 				
@@ -1602,6 +1757,7 @@ async def read_labors_summary_amount(#current_user: Annotated[schemas.User, Secu
 				).join(models.Task, models.Labor.id == models.Task.labor_task_id
 				).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
 				).join(models.Material, models.Labor.id == models.Material.labor_material_id
+				).filter(models.Task.is_active == True	
 				).group_by(models.Labor.id
 				).all()	
 	return db_summary
@@ -1615,6 +1771,7 @@ async def read_summary_project_amount_by_id(#current_user: Annotated[schemas.Use
 		(models.Labor.project_id).label('labor_task_id'),
 		func.sum(models.Task.task_price).label('task_amount'),
 	).join(models.Labor, models.Labor.id == models.Task.labor_task_id
+	).filter(models.Task.is_active == True
 	).group_by(models.Labor.id
 	).subquery()	#subquery()
 	
@@ -1631,8 +1788,9 @@ async def read_summary_project_amount_by_id(#current_user: Annotated[schemas.Use
 		(models.Labor.project_id).label('labor_material_id'),	
 		func.sum(models.Material.material_amount).label('material_amount'),
 	).join(models.Labor, models.Labor.id == models.Material.labor_material_id
+	).filter(models.Task.is_active == True
 	).group_by(models.Labor.id
-	).subquery()	#subquery()
+	).subquery()	
 
 	db_labor = db.query(
 		models.Project.project_name,
@@ -1642,7 +1800,7 @@ async def read_summary_project_amount_by_id(#current_user: Annotated[schemas.Use
 	).select_from(models.Project
 	).filter(db_task.c.labor_task_id == project_id
 	).filter(db_equipment.c.labor_equipment_id == project_id
-	).all()	#subquery()
+	).all()	
 	
 	return db_labor
 	
@@ -1662,6 +1820,8 @@ async def read_projects_summary_amount(#current_user: Annotated[schemas.User, Se
 		models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
 	).join(
 		models.Material, models.Labor.id == models.Material.labor_material_id
+	).filter(
+		models.Labor.is_active == True, models.Task.is_active == True
 	).group_by(
 		models.Labor.id
 	).subquery()
@@ -1793,6 +1953,8 @@ async def summary_all_project_items_task(current_user: Annotated[schemas.User, S
 		func.sum(models.Task.task_price).label('task_amount'),
 	).select_from(
 		models.Task
+	).filter(
+		models.Task.is_active == True
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1807,6 +1969,8 @@ async def summary_all_project_items_task(current_user: Annotated[schemas.User, S
 		models.Labor
 	).join(
 		sub_query_task, sub_query_task.c.labor_id == models.Labor.id
+	).filter(
+		models.Labor.is_active == True
 	).group_by(
 		models.Labor.type	
 	).subquery()
@@ -1851,6 +2015,8 @@ async def summary_all_project_items_equipments(current_user: Annotated[schemas.U
 		models.Labor
 	).join(
 		sub_query_equipment, sub_query_equipment.c.labor_equipment_id == models.Labor.id
+	).filter(
+		models.Labor.is_active == True
 	).group_by(
 		models.Labor.type	
 	).subquery()
@@ -1896,6 +2062,8 @@ async def summary_all_project_items_materials(current_user: Annotated[schemas.Us
 		models.Labor
 	).join(
 		sub_query_material, sub_query_material.c.labor_material_id == models.Labor.id
+	).filter(
+		models.Labor.is_active == True
 	).group_by(
 		models.Labor.type	
 	).subquery()
@@ -2067,6 +2235,8 @@ def report_tasks_by_labor_id(labor_id: str, db: Session):
 		models.Task.task_price,
 	).select_from(
 		models.Task
+	).filter(
+		models.Task.is_active == True
 	).filter_by(
 		labor_task_id = labor_id		
 	).all()
@@ -2259,6 +2429,7 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 			func.sum(models.Task.hour_men).label('hour_men'),			
 			func.sum(models.Task.task_price).label('task_price'),			
 		).join(models.Task, models.Labor.id == models.Task.labor_task_id
+		).filter(models.Task.is_active == True
 		).filter_by(labor_task_id = labor_id
 		).all()	
 		
@@ -2269,6 +2440,8 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 		models.Labor
 	).join(
 		models.Task, models.Labor.id == models.Task.labor_task_id
+	).filter(
+		models.Task.is_active == True
 	).filter(
 		models.Labor.id == labor_id
 	).all()	
@@ -2409,4 +2582,314 @@ async def pdf_report_for_labor_id(current_user: Annotated[schemas.User, Security
 					labor_id: str, db: Session = Depends(get_db)):		
 	headers = {'Content-Disposition': 'attachment; filename="output.pdf"'} #inline / attachment
 	output = report_by_labor_id(labor_id, db)	
+	return Response(bytes(output), headers=headers, media_type='application/pdf')
+
+def report_by_project_id(project_id: str, db: Session):
+	
+	db_project_desc = db.query(
+		models.Project.project_name,
+		models.Project.desc_proj,
+		models.Project.enddate_proj,
+		models.Project.manager,
+	).select_from(
+		models.Project
+	).filter(
+		models.Project.id == project_id
+	).first()
+	
+	sub_task = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).filter(
+		models.Task.is_active == True
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_equipment = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	sub_material = db.query(
+		models.Material.labor_material_id.label('labor_id'),
+		models.Material.material_type.label('material_type'),
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).group_by(
+		models.Material.labor_material_id, models.Material.material_type
+	).subquery()
+	
+	db_project_summary = db.query(
+		models.Project.project_name,
+		models.Labor.type,
+		func.count(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+		func.sum(
+			case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price) +
+			case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount) +
+			case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)
+		).label('Total_amount')
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Labor.is_active == True
+	).filter(
+		models.Project.id == project_id 		
+	).order_by(
+		models.Labor.type		
+	).group_by(
+		models.Labor.id		
+	).all()
+	
+	db_project_total = db.query(
+		func.count(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+		func.sum(
+			case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price) +
+			case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount) +
+			case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)
+		).label('Total_amount')
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Project.id == project_id 		
+	).filter(
+		models.Labor.is_active == True
+	).all()	
+	
+	properties = formar_query_dict(db_project_desc)
+	data_projects = formar_query(db_project_summary)	
+	totals_project = formar_query_totals(db_project_total)
+	
+	#Create table
+	pdf = PDFTable()		
+	#Setup page style
+	pdf.alias_nb_pages()
+	#Setup configuration
+	#pdf.set_font('helvetica', 12)
+	pdf.set_font('Arial', '', 10)
+	#HEADER
+	#Add image
+	pdf.image('./logo.png', x=10, y=8, w=10)
+	# Top margin: move 85 down
+	pdf.ln(15) 			 
+	pdf.cell(0, 5, f'Project name: {properties[0]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Work description: {properties[1]}', 'L', ln=1)
+	pdf.cell(0, 5, f'End date: {properties[2]}', 'L', ln=1)
+	pdf.cell(0, 5, f'Manager: {properties[3]}', 'L', ln=1)
+	pdf.ln(10) 
+	pdf.cell(0, 5, f'Summary report', 'C', ln=1)	
+	# Line break
+	pdf.ln(15)
+	
+	#Create table
+	# table header
+	pdf.table_header(['Labor', '#/Tasks', 'H/men', '$/Task', '#/Equip', '$/Equip', '#/Material', '$/Material', 'Amount'], align=Align.C)	
+	for row in data_projects:
+		pdf.table_row([row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9]], align=Align.C) 	
+		
+	#Add totals
+	pdf.set_font('Arial', 'B', 10)
+	if len(totals_project) > 0:
+		task_number = totals_project[0]
+		hour_men = totals_project[1]
+		task_price = totals_project[2]
+		equi_number = totals_project[3]
+		equi_amount = totals_project[4]
+		mat_number = totals_project[5]
+		mat_amount = totals_project[6]
+		Total_amount = totals_project[7]		
+	
+		pdf.table_row(['Totals', task_number, hour_men, task_price, equi_number, equi_amount, mat_number, mat_amount, Total_amount], align=Align.C)
+	else:	
+		pdf.table_row(['Totals', 0, 0, 0, 0, 0, 0, 0, 0], align=Align.C)	
+	
+	return pdf.output()
+	
+@app.get("/pdf_report_for_project_id/{project_id}", status_code=status.HTTP_201_CREATED)  
+async def pdf_report_for_project_id(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					project_id: str, db: Session = Depends(get_db)):		
+	headers = {'Content-Disposition': 'attachment; filename="output.pdf"'} #inline / attachment
+	output = report_by_project_id(project_id, db)	
+	return Response(bytes(output), headers=headers, media_type='application/pdf')
+	
+def report_summary_projects(db: Session):
+	
+	sub_task = db.query(
+		models.Task.labor_task_id.label('labor_id'),		
+		func.count(models.Task.id).label('task_number'),
+		func.sum(models.Task.hour_men).label('hour_men'),
+		func.sum(models.Task.task_price).label('task_price'),
+	).filter(
+		models.Task.is_active == True
+	).group_by(
+		models.Task.labor_task_id
+	).subquery()
+	
+	sub_equipment = db.query(
+		models.Equipment.labor_equipment_id.label('labor_id'),		
+		func.count(models.Equipment.id).label('equipment_number'),
+		func.sum(models.Equipment.equipment_amount).label('equipment_amount'),
+	).group_by(
+		models.Equipment.labor_equipment_id
+	).subquery()
+	
+	sub_material = db.query(
+		models.Material.labor_material_id.label('labor_id'),
+		models.Material.material_type.label('material_type'),
+		func.count(models.Material.id).label('material_number'),
+		func.sum(models.Material.material_amount).label('material_amount'),
+	).group_by(
+		models.Material.labor_material_id, models.Material.material_type
+	).subquery()
+	
+	db_project_summary = db.query(
+		models.Project.project_name,
+		models.Labor.type,
+		func.count(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+		func.sum(
+			case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price) +
+			case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount) +
+			case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)
+		).label('Total_amount')
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Labor.is_active == True
+	).order_by(
+		models.Project.project_name, models.Labor.type		
+	).group_by(
+		models.Labor.id		
+	).all()
+	
+	db_project_total = db.query(
+		func.count(case([(sub_task.c.task_number == None, 0)], else_= sub_task.c.task_number)).label('task_number'),
+		func.sum(case([(sub_task.c.hour_men == None, 0)], else_= sub_task.c.hour_men)).label('hour_men'),
+		func.sum(case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price)).label('task_price'),
+		func.sum(case([(sub_equipment.c.equipment_number == None, 0)], else_= sub_equipment.c.equipment_number)).label('equipment_number'),
+		func.sum(case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount)).label('equipment_amount'),
+		func.sum(case([(sub_material.c.material_number == None, 0)], else_= sub_material.c.material_number)).label('material_number'),
+		func.sum(case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)).label('material_amount'),
+		func.sum(
+			case([(sub_task.c.task_price == None, 0)], else_= sub_task.c.task_price) +
+			case([(sub_equipment.c.equipment_amount == None, 0)], else_= sub_equipment.c.equipment_amount) +
+			case([(sub_material.c.material_amount == None, 0)], else_= sub_material.c.material_amount)
+		).label('Total_amount')
+	).select_from(
+		models.Project
+	).join(
+		models.Labor, models.Project.id == models.Labor.project_id
+	).outerjoin(
+		sub_equipment, models.Labor.id == sub_equipment.c.labor_id
+	).outerjoin(
+		sub_task, models.Labor.id == sub_task.c.labor_id
+	).outerjoin(
+		sub_material, models.Labor.id == sub_material.c.labor_id
+	).filter(
+		models.Labor.is_active == True
+	).all()	
+	
+	data_projects = formar_query(db_project_summary)	
+	totals_project = formar_query_totals(db_project_total)
+	
+	#Create table
+	pdf = PDFTable()		
+	#Setup page style
+	pdf.alias_nb_pages()
+	#Setup configuration
+	#pdf.set_font('helvetica', 12)
+	pdf.set_font('Arial', '', 10)
+	#HEADER
+	#Add image
+	pdf.image('./logo.png', x=10, y=8, w=10)
+	# Top margin: move 85 down
+	pdf.ln(15) 			 
+	pdf.cell(0, 5, f'Summary projects', 'C', ln=1)	
+	# Line break
+	pdf.ln(15)
+	
+	#Create table
+	# table header
+	pdf.table_header(['Project','Labor', '#/Tasks', 'H/men', '$/Task', '#/Equip', '$/Equip', '#/Material', '$/Material', 'Amount'], align=Align.C)
+	
+	name_row = ""
+	for row in data_projects:
+		if name_row != row[0]:
+			pdf.set_font('helvetica', 'B', 9)
+			pdf.cell(0, 5, row[0], 'L', ln=1)
+			pdf.set_font('helvetica', '', 8)
+			pdf.table_row(['', row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9]], align=Align.C)    #Add corresponding row
+		else:
+			pdf.table_row(['', row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9]], align=Align.C)    #Add corresponding row
+		name_row = row[0] #Store the current name temporaly	
+		
+	#Add totals
+	pdf.set_font('Arial', 'B', 10)
+	if len(totals_project) > 0:
+		task_number = totals_project[0]
+		hour_men = totals_project[1]
+		task_price = totals_project[2]
+		equi_number = totals_project[3]
+		equi_amount = totals_project[4]
+		mat_number = totals_project[5]
+		mat_amount = totals_project[6]
+		Total_amount = totals_project[7]		
+	
+		pdf.table_row(['', 'Totals', task_number, hour_men, task_price, equi_number, equi_amount, mat_number, mat_amount, Total_amount], align=Align.C)
+	else:	
+		pdf.table_row(['', 'Totals', 0, 0, 0, 0, 0, 0, 0, 0], align=Align.C)	
+	
+	return pdf.output()
+	
+@app.get("/pdf_report_summary_projects/", status_code=status.HTTP_201_CREATED)  
+async def pdf_report_summary_projects(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+					db: Session = Depends(get_db)):		
+	headers = {'Content-Disposition': 'attachment; filename="output.pdf"'} #inline / attachment
+	output = report_summary_projects(db)	
 	return Response(bytes(output), headers=headers, media_type='application/pdf')
