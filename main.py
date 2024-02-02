@@ -216,8 +216,8 @@ async def get_user_status(current_user: Annotated[schemas.User, Depends(get_curr
 #########################
 ###   USERS ADMIN  ######
 #########################
-@app.post("/create_user_admin", status_code=status.HTTP_201_CREATED)  
-async def create_user_admin(db: Session = Depends(get_db)): #Por el momento no tiene restricciones
+@app.post("/create_ownwer", status_code=status.HTTP_201_CREATED)  
+async def create_ownwer(db: Session = Depends(get_db)): #Por el momento no tiene restricciones
 	if db.query(models.User).filter(models.User.username == config.ADMIN_USER).first():
 		db_user = db.query(models.User).filter(models.User.username == config.ADMIN_USER).first()
 		if db_user is None:
@@ -273,7 +273,8 @@ async def update_user(current_user: Annotated[schemas.User, Depends(get_current_
 		raise HTTPException(status_code=404, detail="User not found")
 	db_user.username=new_user.username
 	db_user.full_name=new_user.full_name
-	db_user.email=new_user.email		
+	db_user.email=new_user.email	
+	db_user.role=new_user.role
 	db.commit()
 	db.refresh(db_user)	
 	return db_user	
@@ -284,9 +285,10 @@ async def activate_user(current_user: Annotated[schemas.User, Depends(get_curren
 	db_user = db.query(models.User).filter(models.User.username == username).first()
 	if db_user is None:
 		raise HTTPException(status_code=404, detail="User not found")
-	db_user.disable=new_user.disable		
-	db.commit()
-	db.refresh(db_user)	
+	if username != "_admin" and username != current_user.username:
+		db_user.disable=new_user.disable		
+		db.commit()
+		db.refresh(db_user)	
 	return db_user	
 	
 @app.delete("/delete_user/{username}", status_code=status.HTTP_201_CREATED) 
@@ -295,8 +297,9 @@ async def delete_user(current_user: Annotated[schemas.User, Depends(get_current_
 	db_user = db.query(models.User).filter(models.User.username == username).first()
 	if db_user is None:
 		raise HTTPException(status_code=404, detail="User not found")	
-	db.delete(db_user)	
-	db.commit()
+	if username != "_admin" and username != current_user.username:
+		db.delete(db_user)	
+		db.commit()
 	return {"Deleted": "Delete User Successfuly"}
 	
 @app.put("/reset_password/{username}", status_code=status.HTTP_201_CREATED) 
@@ -361,7 +364,7 @@ async def read_projects_by_user(current_user: Annotated[schemas.User, Security(g
 	
 @app.put("/update_project/{project_id}", status_code=status.HTTP_201_CREATED) #response_model=schemas.User
 async def update_project(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
-					project_id: str, project: schemas.Project, db: Session = Depends(get_db)):
+					project_id: str, project: schemas.ProjectUPD, db: Session = Depends(get_db)):
 	db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
 	if db_project is None:
 		raise HTTPException(status_code=404, detail="Project not found")
@@ -422,7 +425,7 @@ async def create_labor(current_user: Annotated[schemas.User, Security(get_curren
 				desc_labor=labor.desc_labor,
 				inidate_labor=func.now(),
 				upddate_labor=func.now(),
-				enddate_labor=labor.enddate_labor,
+				enddate_labor=func.now(),
 				project_id=labor.project_id, 
 			)			
 			
@@ -477,7 +480,7 @@ async def update_labor(current_user: Annotated[schemas.User, Security(get_curren
 		raise HTTPException(status_code=404, detail="Labor category not found")
 	db_labor.desc_labor=upd_labor.desc_labor
 	db_labor.type=upd_labor.type
-	db_labor.upddate_labor=func.now()
+	#db_labor.upddate_labor=func.now()
 	db.commit()
 	db.refresh(db_labor)	
 	return db_labor
@@ -541,7 +544,7 @@ async def create_task(current_user: Annotated[schemas.User, Security(get_current
 				hour_men=(task.hour * task.mechanicals),
 				inidate_task=func.now(),
 				upddate_task=func.now(),
-				enddate_task=task.enddate_task,
+				enddate_task=func.now(),
 				is_active=True,
 				labor_task_id=task.labor_task_id,
 			)			

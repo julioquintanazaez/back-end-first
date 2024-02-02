@@ -6,6 +6,7 @@ class UserUPD(BaseModel):
 	username: str
 	email: Union[EmailStr, None] = None
 	full_name: Union[str, None] = None
+	role: List[str] = []
 	
 	class Config:
 		orm_mode = True
@@ -64,6 +65,17 @@ class ProjectUpdDate(BaseModel):
 		orm_mode = True
 		allow_population_by_field_name = True
 		arbitrary_types_allowed = True	
+
+class ProjectUPD(BaseModel):
+	project_name : str
+	desc_proj : Union[str, None] = None
+	manager : str
+	mail_manager : EmailStr 
+	
+	class Config:
+		orm_mode = True
+		allow_population_by_field_name = True
+		arbitrary_types_allowed = True
 		
 class Project(BaseModel):
 	project_name : str
@@ -115,8 +127,7 @@ class LaborUpdDate(BaseModel):
 class Labor(BaseModel):
 	type : str	
 	desc_labor : str
-	project_id: str
-	enddate_labor : date
+	project_id: str	
 	
 	class Config:
 		orm_mode = True
@@ -126,7 +137,8 @@ class Labor(BaseModel):
 class LaborInDB(Labor):
 	id: str		
 	inidate_labor : date
-	upddate_labor : date	
+	upddate_labor : date
+	enddate_labor : date
 	is_active : Union[bool, None] = None 
 	is_open : Union[bool, None] = None 
 
@@ -163,7 +175,6 @@ class Task(BaseModel):
 	description : str
 	mechanicals : int
 	hour : int
-	enddate_task : date
 	task_price : float
 	labor_task_id : str 
 			
@@ -177,6 +188,7 @@ class TaskInDB(Task):
 	hour_men : int
 	inidate_task : Union[date, None] = None
 	upddate_task : Union[date, None] = None
+	enddate_task : date	
 	is_active : Union[bool, None] = None	
 	
 #-------------------------
