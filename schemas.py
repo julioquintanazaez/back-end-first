@@ -40,6 +40,10 @@ class UserInDB(User):
 class UserPassword(BaseModel):
     hashed_password: str
 	
+class UserResetPassword(BaseModel):
+	actualpassword: str
+	newpassword: str
+	
 class Token(BaseModel):
     access_token: str
     token_type: str

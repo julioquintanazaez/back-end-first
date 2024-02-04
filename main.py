@@ -191,7 +191,7 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
 		data={"sub": user.username, "scopes": user.role},   #form_data.scopes
 		expires_delta=access_token_expires
 	)
-	return {"access_token": access_token, "token_type": "Bearer"}
+	return {"detail": "Ok", "access_token": access_token, "token_type": "Bearer"}
 	
 @app.get("/")
 def index():
@@ -312,6 +312,21 @@ async def reset_password(current_user: Annotated[schemas.User, Security(get_curr
 	db.commit()
 	db.refresh(db_user)	
 	return {"Result": "Password Updated Successfuly"}
+	
+@app.put("/reset_password_by_user/{username}", status_code=status.HTTP_201_CREATED) 
+async def reset_password_by_user(current_user: Annotated[schemas.User, Security(get_current_user, scopes=["manager"])],
+				username: str, password: schemas.UserResetPassword, db: Session = Depends(get_db)):
+				
+	if not verify_password(password.actualpassword, current_user.hashed_password): 
+		return HTTPException(status_code=700, detail="Actual password doesn't match")
+		
+	db_user = db.query(models.User).filter(models.User.username == username).first()	
+	if db_user is None:
+		raise HTTPException(status_code=404, detail="User not found")	
+	db_user.hashed_password=pwd_context.hash(password.newpassword)
+	db.commit()
+	db.refresh(db_user)	
+	return {"response": "Password Updated Successfuly"}
 		
 #######################
 #CRUD for PROJECTS here
@@ -741,6 +756,7 @@ async def read_labors_stats_by_project_id(current_user: Annotated[schemas.User, 
 	labor_query = db.query(
 		models.Labor.id,	
 		models.Labor.type,
+		models.Labor.desc_labor,
 		models.Labor.is_active,
 		func.sum(case([(sub_task_open.c.task_open_price == None, 0)], else_= sub_task_open.c.task_open_price)).label('task_open_price'),
 		func.sum(case([(sub_task_close.c.task_close_price == None, 0)], else_= sub_task_close.c.task_close_price)).label('task_close_price'),
@@ -762,8 +778,6 @@ async def read_labors_stats_by_project_id(current_user: Annotated[schemas.User, 
 		sub_task_open, models.Labor.id == sub_task_open.c.labor_id
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
-	).filter(
-		models.Labor.is_active == True
 	).filter(
 		models.Labor.project_id == project_id
 	).group_by(
@@ -1153,7 +1167,7 @@ async def summary_amount_tasks_by_labor_id(current_user: Annotated[schemas.User,
 					func.sum(models.Task.task_price).label('task_price'),
 					func.count(models.Task.id).label('task_number'),
 				).join(models.Task, models.Labor.id == models.Task.labor_task_id
-				).filter(models.Task.is_active == True
+				).filter(models.Task.is_active == False
 				).filter_by(labor_task_id = labor_id
 				).all()	
 	return db_project_summary
@@ -1170,7 +1184,7 @@ async def summary_tasks_by_project_id(current_user: Annotated[schemas.User, Secu
 	).select_from(
 		models.Task
 	).filter(
-		models.Task.is_active == True 
+		models.Task.is_active == False 
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1188,7 +1202,7 @@ async def summary_tasks_by_project_id(current_user: Annotated[schemas.User, Secu
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True 	
+		models.Labor.is_active == False 	
 	).filter(
 		models.Project.id == project_id 		
 	).group_by(
@@ -1209,7 +1223,7 @@ async def summary_all_tasks(current_user: Annotated[schemas.User, Security(get_c
 	).select_from(
 		models.Task
 	).filter(
-		models.Task.is_active == True 
+		models.Task.is_active == False 
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1228,7 +1242,7 @@ async def summary_all_tasks(current_user: Annotated[schemas.User, Security(get_c
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True 	
+		models.Labor.is_active == False 	
 	).group_by(
 		models.Project.id		
 	).all()
@@ -1246,6 +1260,8 @@ async def summary_all_tasks_labor_type(current_user: Annotated[schemas.User, Sec
 		func.sum(models.Task.task_price).label('task_price'),
 	).select_from(
 		models.Task
+	).filter(
+		models.Task.is_active == False 
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1260,6 +1276,8 @@ async def summary_all_tasks_labor_type(current_user: Annotated[schemas.User, Sec
 		models.Labor
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
+	).filter(
+		models.Labor.is_active == False 	
 	).group_by(
 		models.Labor.type		
 	).all()
@@ -1278,7 +1296,7 @@ async def summary_tasks_total(current_user: Annotated[schemas.User, Security(get
 	).select_from(
 		models.Task
 	).filter(
-		models.Task.is_active == True 
+		models.Task.is_active == False 
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1295,7 +1313,7 @@ async def summary_tasks_total(current_user: Annotated[schemas.User, Security(get
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True 	
+		models.Labor.is_active == False 	
 	).all()
 	
 	return query
@@ -1340,7 +1358,7 @@ async def summary_equipments_by_project_id(current_user: Annotated[schemas.User,
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True 	
+		models.Labor.is_active == False 	
 	).filter(
 		models.Project.id == project_id 		
 	).group_by(
@@ -1376,7 +1394,7 @@ async def summary_all_equipments(current_user: Annotated[schemas.User, Security(
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True 	
+		models.Labor.is_active == False 	
 	).group_by(
 		models.Project.id		
 	).all()
@@ -1408,7 +1426,7 @@ async def summary_equipments_total(current_user: Annotated[schemas.User, Securit
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True 	
+		models.Labor.is_active == False 	
 	).all()
 	
 	return query
@@ -1458,7 +1476,7 @@ async def summary_materials_by_project_id(current_user: Annotated[schemas.User, 
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True 	
+		models.Labor.is_active == False 	
 	).filter(
 		models.Project.id == project_id 		
 	).group_by(
@@ -1495,7 +1513,7 @@ async def summary_all_materials(current_user: Annotated[schemas.User, Security(g
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True 	
+		models.Labor.is_active == False 	
 	).group_by(
 		models.Project.id, models.Labor.id	
 	).all()
@@ -1524,6 +1542,8 @@ async def summary_materials_total(current_user: Annotated[schemas.User, Security
 		models.Project
 	).join(
 		models.Labor, models.Project.id == models.Labor.project_id
+	).filter(
+		models.Labor.is_active == False 	
 	).join(
 		sub_query, sub_query.c.labor_id == models.Labor.id
 	).all()
@@ -1544,7 +1564,7 @@ async def summary_all_item_labor_type(current_user: Annotated[schemas.User, Secu
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1582,7 +1602,7 @@ async def summary_all_item_labor_type(current_user: Annotated[schemas.User, Secu
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).group_by(
 		models.Labor.type		
 	).all()
@@ -1602,7 +1622,7 @@ async def summary_amount_labor_id(current_user: Annotated[schemas.User, Security
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1663,7 +1683,7 @@ async def summary_amount_labor_type(current_user: Annotated[schemas.User, Securi
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1706,7 +1726,7 @@ async def summary_amount_labor_type(current_user: Annotated[schemas.User, Securi
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).group_by(
 		models.Labor.type		
 	).all()
@@ -1726,7 +1746,7 @@ async def stats_amount_by_project(current_user: Annotated[schemas.User, Security
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1776,7 +1796,7 @@ async def stats_amount_by_project(current_user: Annotated[schemas.User, Security
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).filter(
 		models.Project.id == project_id 		
 	).order_by(
@@ -1797,7 +1817,7 @@ async def stats_amount_for_all_project(current_user: Annotated[schemas.User, Sec
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1847,7 +1867,7 @@ async def stats_amount_for_all_project(current_user: Annotated[schemas.User, Sec
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).order_by(
 		models.Project.project_name, models.Labor.type
 	).group_by(
@@ -1866,7 +1886,7 @@ async def total_amount_for_projects(current_user: Annotated[schemas.User, Securi
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1912,7 +1932,7 @@ async def total_amount_for_projects(current_user: Annotated[schemas.User, Securi
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).all()
 	
 	return db_project_total
@@ -1931,7 +1951,7 @@ async def summary_task_active_status_by_project(current_user: Annotated[schemas.
 	).select_from(
 		models.Task
 	).filter(
-		models.Task.is_active == True 
+		models.Task.is_active == False 
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -1962,7 +1982,7 @@ async def summary_task_active_status_by_project(current_user: Annotated[schemas.
 	).join(
 		sub_query_total, sub_query_total.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).group_by(
 		models.Project.id, models.Labor.id	
 	).all()
@@ -1979,7 +1999,7 @@ async def summary_task_active_status_by_project_id(current_user: Annotated[schem
 	).select_from(
 		models.Task
 	).filter(
-		models.Task.is_active == True 
+		models.Task.is_active == False 
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -2010,7 +2030,7 @@ async def summary_task_active_status_by_project_id(current_user: Annotated[schem
 	).join(
 		sub_query_total, sub_query_total.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).filter(
 		models.Project.id == project_id 		
 	).group_by(
@@ -2037,7 +2057,7 @@ async def read_summary_labor_amount_by_id(#current_user: Annotated[schemas.User,
 				).join(models.Task, models.Labor.id == models.Task.labor_task_id
 				).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
 				).join(models.Material, models.Labor.id == models.Material.labor_material_id
-				).filter(models.Labor.is_active == True
+				).filter(models.Labor.is_active == False
 				).where(models.Labor.id == labor_id
 				).all()	
 				
@@ -2060,7 +2080,7 @@ async def read_labors_summary_amount(#current_user: Annotated[schemas.User, Secu
 				).join(models.Task, models.Labor.id == models.Task.labor_task_id
 				).join(models.Equipment, models.Labor.id == models.Equipment.labor_equipment_id
 				).join(models.Material, models.Labor.id == models.Material.labor_material_id
-				).filter(models.Task.is_active == True	
+				).filter(models.Task.is_active == False	
 				).group_by(models.Labor.id
 				).all()	
 	return db_summary
@@ -2074,7 +2094,7 @@ async def read_summary_project_amount_by_id(#current_user: Annotated[schemas.Use
 		(models.Labor.project_id).label('labor_task_id'),
 		func.sum(models.Task.task_price).label('task_amount'),
 	).join(models.Labor, models.Labor.id == models.Task.labor_task_id
-	).filter(models.Task.is_active == True
+	).filter(models.Task.is_active == False
 	).group_by(models.Labor.id
 	).subquery()	#subquery()
 	
@@ -2091,7 +2111,6 @@ async def read_summary_project_amount_by_id(#current_user: Annotated[schemas.Use
 		(models.Labor.project_id).label('labor_material_id'),	
 		func.sum(models.Material.material_amount).label('material_amount'),
 	).join(models.Labor, models.Labor.id == models.Material.labor_material_id
-	).filter(models.Task.is_active == True
 	).group_by(models.Labor.id
 	).subquery()	
 
@@ -2257,7 +2276,7 @@ async def summary_all_project_items_task(current_user: Annotated[schemas.User, S
 	).select_from(
 		models.Task
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -2273,7 +2292,7 @@ async def summary_all_project_items_task(current_user: Annotated[schemas.User, S
 	).join(
 		sub_query_task, sub_query_task.c.labor_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).group_by(
 		models.Labor.type	
 	).subquery()
@@ -2319,7 +2338,7 @@ async def summary_all_project_items_equipments(current_user: Annotated[schemas.U
 	).join(
 		sub_query_equipment, sub_query_equipment.c.labor_equipment_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).group_by(
 		models.Labor.type	
 	).subquery()
@@ -2366,7 +2385,7 @@ async def summary_all_project_items_materials(current_user: Annotated[schemas.Us
 	).join(
 		sub_query_material, sub_query_material.c.labor_material_id == models.Labor.id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).group_by(
 		models.Labor.type	
 	).subquery()
@@ -2539,7 +2558,7 @@ def report_tasks_by_labor_id(labor_id: str, db: Session):
 	).select_from(
 		models.Task
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).filter_by(
 		labor_task_id = labor_id		
 	).all()
@@ -2732,7 +2751,7 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 			func.sum(models.Task.hour_men).label('hour_men'),			
 			func.sum(models.Task.task_price).label('task_price'),			
 		).join(models.Task, models.Labor.id == models.Task.labor_task_id
-		).filter(models.Task.is_active == True
+		).filter(models.Task.is_active == False
 		).filter_by(labor_task_id = labor_id
 		).all()	
 		
@@ -2744,7 +2763,7 @@ def report_by_labor_id(labor_id: str, db: Session): #= Depends(get_db)
 	).join(
 		models.Task, models.Labor.id == models.Task.labor_task_id
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).filter(
 		models.Labor.id == labor_id
 	).all()	
@@ -2906,7 +2925,7 @@ def report_by_project_id(project_id: str, db: Session):
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -2954,7 +2973,7 @@ def report_by_project_id(project_id: str, db: Session):
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).filter(
 		models.Project.id == project_id 		
 	).order_by(
@@ -2989,7 +3008,7 @@ def report_by_project_id(project_id: str, db: Session):
 	).filter(
 		models.Project.id == project_id 		
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).all()	
 	
 	properties = formar_query_dict(db_project_desc)
@@ -3056,7 +3075,7 @@ def report_summary_projects(db: Session):
 		func.sum(models.Task.hour_men).label('hour_men'),
 		func.sum(models.Task.task_price).label('task_price'),
 	).filter(
-		models.Task.is_active == True
+		models.Task.is_active == False
 	).group_by(
 		models.Task.labor_task_id
 	).subquery()
@@ -3104,7 +3123,7 @@ def report_summary_projects(db: Session):
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).order_by(
 		models.Project.project_name, models.Labor.type		
 	).group_by(
@@ -3135,7 +3154,7 @@ def report_summary_projects(db: Session):
 	).outerjoin(
 		sub_material, models.Labor.id == sub_material.c.labor_id
 	).filter(
-		models.Labor.is_active == True
+		models.Labor.is_active == False
 	).all()	
 	
 	data_projects = formar_query(db_project_summary)	
