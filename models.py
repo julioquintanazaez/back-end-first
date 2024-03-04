@@ -43,10 +43,9 @@ class Project(Base):
 	upddate_proj = Column(DateTime, onupdate=func.now()) 
 	enddate_proj = Column(DateTime)
 	manager = Column(String(50), nullable=False, index=True)
-	mail_manager = Column(String(50), unique=True, nullable=True)
+	mail_manager = Column(String(50), unique=False, nullable=True)
 	latitud = Column(Float, nullable=True, default=0.0) 	
 	longitud = Column(Float, nullable=True, default=0.0) 
-	is_active = Column(Boolean, nullable=True, default=True)
 	#Relations with its child "Labor"
 	labors = relationship("Labor", back_populates="project")
 	
@@ -56,10 +55,6 @@ class Labor(Base):
 	id = Column(GUID, primary_key=True, default=GUID_DEFAULT_SQLITE)
 	type = Column(String(100), nullable=False, index=True)
 	desc_labor = Column(String(100), nullable=True, default=None, index=True)
-	inidate_labor = Column(DateTime, nullable=True, server_default=func.now())
-	upddate_labor = Column(DateTime, onupdate=func.now()) 
-	enddate_labor = Column(DateTime)	
-	is_active = Column(Boolean, nullable=True, default=True)	
 	#Relation with its father "Project"
 	project_id = Column(GUID, ForeignKey("project.id"))
 	project = relationship("Project", back_populates="labors")
@@ -77,10 +72,6 @@ class Task(Base):
 	hour = Column(Integer, nullable=True, default=1)
 	hour_men = Column(Integer, nullable=True, default=1)
 	task_price = Column(Float, nullable=True, default=1.0)
-	inidate_task = Column(DateTime, nullable=False, server_default=func.now())
-	upddate_task = Column(DateTime, onupdate=func.now()) 
-	enddate_task = Column(DateTime)	
-	is_active = Column(Boolean, nullable=True, default=True)
 	#Relation with its father "Labor"
 	labor_task_id = Column(GUID, ForeignKey("labor.id"))	
 	labor_tasks = relationship("Labor", back_populates="tasks")

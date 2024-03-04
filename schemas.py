@@ -54,14 +54,6 @@ class TokenData(BaseModel):
 #-------------------------
 #-------PROJECT-------------
 #-------------------------
-class ProjectActive(BaseModel):
-	is_active: Union[bool, None] = None
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-		
 class ProjectUpdDate(BaseModel):
 	enddate_proj : Union[date, None] = None
 			
@@ -99,18 +91,9 @@ class ProjectInDB(Project):
 	upddate_proj : Union[date, None] = None
 	latitud : Union[float, None] = None
 	longitud : Union[float, None] = None
-	is_active : Union[bool, None] = None 
 #-------------------------
 #-------LABOR-------------
 #-------------------------	
-class LaborActive(BaseModel):
-	is_active: bool
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-		
 class LaborUPD(BaseModel):
 	desc_labor : str
 	type: str
@@ -119,14 +102,6 @@ class LaborUPD(BaseModel):
 		orm_mode = True
 		allow_population_by_field_name = True
 		arbitrary_types_allowed = True
-		
-class LaborUpdDate(BaseModel):
-	enddate_labor : Union[date, None] = None
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
 		
 class Labor(BaseModel):
 	type : str	
@@ -139,24 +114,11 @@ class Labor(BaseModel):
 		arbitrary_types_allowed = True
 		
 class LaborInDB(Labor):
-	id: str		
-	inidate_labor : date
-	upddate_labor : date
-	enddate_labor : date
-	is_active : Union[bool, None] = None 
-	is_open : Union[bool, None] = None 
+	id: str
 
 #-------------------------
 #-------TASK-------------
 #-------------------------
-class TaskActive(BaseModel):
-	is_active: Union[bool, None] = None
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-	
 class TaskUPD(BaseModel):
 	mechanicals : int
 	hour : int
@@ -167,14 +129,6 @@ class TaskUPD(BaseModel):
 		allow_population_by_field_name = True
 		arbitrary_types_allowed = True	
 
-class TaskUpdDate(BaseModel):
-	enddate_task : Union[date, None] = None
-			
-	class Config:
-		orm_mode = True
-		allow_population_by_field_name = True
-		arbitrary_types_allowed = True	
-		
 class Task(BaseModel):
 	description : str
 	mechanicals : int
@@ -190,10 +144,6 @@ class Task(BaseModel):
 class TaskInDB(Task):
 	id: str
 	hour_men : int
-	inidate_task : Union[date, None] = None
-	upddate_task : Union[date, None] = None
-	enddate_task : date	
-	is_active : Union[bool, None] = None	
 	
 #-------------------------
 #-------MATERIAL-------------
